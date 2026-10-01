@@ -4,3 +4,7 @@ node_modules
 *.db
 .next
 .DS_Store
+*.db-journal
+next-env.d.ts
+*.tsbuildinfo
+src/generated

@@ -1,0 +1,54 @@
+body {
+  font-family: system-ui, sans-serif;
+  margin: 0;
+  padding: 16px;
+  line-height: 1.4;
+}
+
+.workspace {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.task-column {
+  flex: 2 1 480px;
+  min-width: 0;
+}
+
+.chat-column {
+  flex: 1 1 300px;
+  min-width: 0;
+}
+
+textarea.editor {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 360px;
+  font: inherit;
+  padding: 8px;
+}
+
+.toolbar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin: 8px 0;
+}
+
+.save-status {
+  margin-left: auto;
+}
+
+.save-status.not-saved {
+  color: #b00020;
+  font-weight: bold;
+}
+
+.chat-placeholder {
+  border: 1px dashed #999;
+  padding: 12px;
+  min-height: 360px;
+  color: #555;
+}
