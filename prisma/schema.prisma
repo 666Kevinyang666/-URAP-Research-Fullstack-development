@@ -1,0 +1,64 @@
+// Allowed values for string "enum" columns are defined and validated in
+// src/lib/constants.ts (SQLite has no native enum type).
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Session {
+  id        String    @id @default(cuid())
+  sessionId String    @unique // participant id from the study URL (?sid=)
+  version   String // "none" | "standard" | "sustainable"
+  createdAt DateTime  @default(now())
+  endedAt   DateTime?
+
+  drafts    Draft[]
+  snapshots Snapshot[]
+}
+
+model Draft {
+  id            Int      @id @default(autoincrement())
+  sessionId     String
+  taskId        String
+  content       String   @default("")
+  status        String   @default("not_started") // "not_started" | "in_progress" | "complete"
+  updatedAt     DateTime @updatedAt
+  revisionCount Int      @default(0) // incremented only when saved content changes
+
+  session Session @relation(fields: [sessionId], references: [sessionId])
+
+  @@unique([sessionId, taskId])
+}
+
+model Snapshot {
+  id        Int      @id @default(autoincrement())
+  sessionId String
+  taskId    String
+  content   String
+  reason    String // "interval" | "complete" | "reopen" | "end_work"
+  createdAt DateTime @default(now())
+
+  session Session @relation(fields: [sessionId], references: [sessionId])
+
+  @@index([sessionId, taskId])
+}
+
+// Append-only log. UPDATE and DELETE are blocked by triggers in the init migration.
+// No foreign key to Session on purpose: an event is never dropped because of
+// a referential check.
+model Event {
+  id        Int      @id @default(autoincrement())
+  sessionId String
+  version   String
+  taskId    String?
+  eventType String
+  payload   Json
+  timestamp DateTime @default(now())
+
+  @@index([sessionId, timestamp])
+}
