@@ -1,0 +1,11 @@
+[
+  {
+    "id": "task1",
+    "title": "Task 1: Placeholder writing task",
+    "instructions": [
+      "These are placeholder instructions. Replace them in config/tasks.json.",
+      "Write a short response (about 200-300 words) to the prompt below.",
+      "Prompt: Describe a change you would make to your neighborhood and explain why."
+    ]
+  }
+]

@@ -1,0 +1,5 @@
+{
+  "qualtricsUrl": "https://example.qualtrics.com/jfe/form/SV_PLACEHOLDER",
+  "autosaveIntervalMs": 3000,
+  "snapshotIntervalMs": 300000
+}
