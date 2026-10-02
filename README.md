@@ -42,19 +42,22 @@ Never commit `.env` or API keys. This repo is public.
 
 - `config/tasks.json`: task ids, titles and instructions (placeholders for now).
 - `config/study.json`: `qualtricsUrl` (survey link), `autosaveIntervalMs` (3 s), `snapshotIntervalMs` (5 min).
+- `OPENAI_API_KEY` / `OPENAI_MODEL` (in `.env`): credentials and model for the AI proxy. `OPENAI_MODEL`
+  defaults to `gpt-4o-mini` when unset — the same model is used for both AI versions, per the brief.
 
 ## Routes
 
 | Route | Purpose |
 | --- | --- |
 | `GET /start?sid=...&version=...` | Creates the session, or resumes it if the sid exists (its stored version is never changed). Sets an `sid` cookie used by all later requests and redirects to the first task. |
-| `GET /task/[taskId]` | Task page: instructions, editor, AI chat pane placeholder (hidden for `none`). |
+| `GET /task/[taskId]` | Task page: instructions, editor, AI chat pane (hidden for `none`). |
 | `GET /survey` | "Continue to survey": redirects to `qualtricsUrl` with `?sid=` appended. |
 | `POST /api/draft` | Autosave `{ taskId, content, trigger }`. |
 | `POST /api/snapshot` | Save plus interval snapshot `{ taskId, content }`. |
 | `POST /api/task/complete` / `reopen` | Change task status `{ taskId, content? }`. |
 | `POST /api/session/end` | End work: saves, snapshots every draft, sets `endedAt`. |
 | `POST /api/events` | Browser interaction events (allow-listed types only). |
+| `POST /api/ai` | AI proxy `{ taskId, message }`. Hidden/unused in the `none` version. |
 
 ## Saving behavior
 
@@ -91,9 +94,27 @@ See `prisma/schema.prisma`.
 | `editor_focus` / `editor_blur` | browser | `clientTs` (+ `length` on blur) |
 | `visibility_hidden` / `visibility_visible` | browser | `clientTs` |
 | `task_close` | browser (page unload) | `clientTs` |
-| AI message events | AI proxy via `logEvent` | defined by the AI proxy |
+| `ai_user_message` | server (`/api/ai`, before calling the model) | `text`, `model` |
+| `ai_assistant_message` | server (`/api/ai`, on a successful reply) | `text`, `model` |
+| `ai_error` | server (`/api/ai`, on a failed call) | `message`, `model` |
 
-## Logging from server code (AI proxy)
+## AI proxy
+
+`POST /api/ai` with `{ taskId, message }` (session via the `sid` cookie, like the other API routes).
+It is the only code path that talks to OpenAI:
+
+- Builds a system prompt from the task instructions and the participant's current saved draft
+  (`buildSystemPrompt` in `@/lib/ai`), plus prior turns rebuilt from the event log — the conversation
+  needs no separate table, so it survives a refresh or switching tasks and back.
+- For the `sustainable` version, the prompt also tells the model not to routinely invite further
+  revisions, per the brief's cognitive-closure manipulation. `standard` gets the same model with no
+  such restriction. Both AI versions use the same `OPENAI_MODEL`.
+- Logs `ai_user_message` before the call and `ai_assistant_message` (or `ai_error` on failure)
+  after, via `logEvent` — see below.
+- Returns `502` with a friendly message if the call fails (including a missing `OPENAI_API_KEY`);
+  the chat pane surfaces that inline.
+
+## Logging from server code
 
 ```ts
 import { logEvent } from "@/lib/logEvent";

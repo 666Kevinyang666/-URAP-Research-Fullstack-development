@@ -46,9 +46,76 @@ textarea.editor {
   font-weight: bold;
 }
 
-.chat-placeholder {
-  border: 1px dashed #999;
+.chat-pane {
+  border: 1px solid #ccc;
+  border-radius: 4px;
   padding: 12px;
+  display: flex;
+  flex-direction: column;
   min-height: 360px;
+}
+
+.chat-subtitle {
+  margin: 0 0 8px;
   color: #555;
+  font-size: 0.85em;
+}
+
+.chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 200px;
+}
+
+.chat-empty,
+.chat-pending {
+  color: #555;
+  font-style: italic;
+}
+
+.chat-message {
+  border-radius: 4px;
+  padding: 6px 8px;
+}
+
+.chat-message p {
+  margin: 2px 0 0;
+  white-space: pre-wrap;
+}
+
+.chat-message-user {
+  background: #eef3fb;
+  align-self: flex-end;
+}
+
+.chat-message-assistant {
+  background: #f1f1f1;
+  align-self: flex-start;
+}
+
+.chat-role {
+  font-size: 0.75em;
+  font-weight: bold;
+  color: #555;
+}
+
+.copy-reply {
+  margin-top: 4px;
+}
+
+.chat-input-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.chat-input {
+  flex: 1;
+  font: inherit;
+  padding: 8px;
+  resize: vertical;
+  min-height: 2.5em;
 }

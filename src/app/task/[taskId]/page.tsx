@@ -3,6 +3,7 @@ import { getCurrentSession } from "@/lib/session";
 import { getTask, STUDY } from "@/lib/config";
 import { ensureDraft } from "@/lib/drafts";
 import { logEvent } from "@/lib/logEvent";
+import { getConversation } from "@/lib/ai";
 import { DRAFT_STATUSES, type DraftStatus } from "@/lib/constants";
 import ChatPane from "@/components/ChatPane";
 import TaskEditor from "./TaskEditor";
@@ -45,6 +46,7 @@ export default async function TaskPage({ params }: { params: Promise<{ taskId: s
   const status: DraftStatus = (DRAFT_STATUSES as readonly string[]).includes(draft.status)
     ? (draft.status as DraftStatus)
     : "in_progress";
+  const aiMessages = session.version !== "none" ? await getConversation(session.sessionId, taskId) : [];
 
   return (
     <main className="workspace">
@@ -64,7 +66,7 @@ export default async function TaskPage({ params }: { params: Promise<{ taskId: s
       </section>
       {session.version !== "none" && (
         <aside className="chat-column">
-          <ChatPane taskId={taskId} version={session.version} />
+          <ChatPane taskId={taskId} version={session.version} initialMessages={aiMessages} />
         </aside>
       )}
     </main>
