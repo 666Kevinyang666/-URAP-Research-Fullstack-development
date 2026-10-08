@@ -90,6 +90,22 @@ body {
   white-space: pre-wrap;
 }
 
+.effort-panel dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 12px;
+  margin: 6px 0 0;
+}
+
+.effort-panel dt {
+  color: #555;
+}
+
+.effort-panel dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
 .pause-banner {
   position: absolute;
   top: 0;

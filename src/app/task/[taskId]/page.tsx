@@ -15,6 +15,7 @@ import { getPauseState } from "@/lib/pause";
 import { getEffort } from "@/lib/effort";
 import { getPlan } from "@/lib/plans";
 import { PlanPanel } from "./Plan";
+import EffortPanel from "./EffortPanel";
 
 export const dynamic = "force-dynamic";
 
@@ -103,6 +104,7 @@ export default async function TaskPage({ params }: { params: Promise<{ taskId: s
         {/* Always rendered (empty when no side features) so the layout is identical across versions. */}
         <aside className="side-column">
           {features.taskPlan && <PlanPanel />}
+          {features.effortDisplay && <EffortPanel initialAiRequestCount={effort.aiRequestCount} />}
           {features.ai && <ChatPane taskId={taskId} version={session.version} initialMessages={aiMessages} />}
         </aside>
       </main>
