@@ -32,7 +32,7 @@ Useful commands:
 
 | Command | What it does |
 | --- | --- |
-| `npx prisma studio` | Browse the database |
+| `npx prisma studio --url "file:///<absolute path>/dev.db"` | Browse the database. Prisma 7 Studio rejects the relative `file:./dev.db` URL, so pass an absolute one. |
 | `npx prisma migrate dev --name <name>` | Create a migration after editing `prisma/schema.prisma` |
 | `npm run typecheck` | TypeScript check |
 
