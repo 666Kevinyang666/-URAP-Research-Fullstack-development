@@ -9,7 +9,7 @@ body {
    the side column has content (it stays empty for the "none" version). */
 .workspace {
   display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  grid-template-columns: 220px minmax(0, 2fr) minmax(0, 1fr);
   gap: 16px;
 }
 
@@ -22,6 +22,42 @@ body {
 .task-column,
 .side-column {
   min-width: 0;
+}
+
+.task-nav h2 {
+  font-size: 1em;
+  margin: 0 0 8px;
+}
+
+.task-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 16px;
+}
+
+.task-list li {
+  padding: 6px 8px;
+  border-left: 3px solid transparent;
+}
+
+.task-list li.current {
+  border-left-color: #333;
+  background: #f1f1f1;
+}
+
+.task-list li.current a {
+  font-weight: bold;
+  color: inherit;
+  text-decoration: none;
+}
+
+.task-meta {
+  font-size: 0.85em;
+  color: #555;
+}
+
+.end-dialog {
+  max-width: 480px;
 }
 
 textarea.editor {

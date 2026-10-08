@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { DraftStatus } from "@/lib/constants";
+import { beacon, logClientEvent, post } from "@/lib/clientApi";
+import { useWorkspace } from "./Workspace";
 
 type SaveState = "saved" | "saving" | "not_saved";
 
@@ -9,23 +11,9 @@ type Props = {
   sessionId: string;
   taskId: string;
   initialContent: string;
-  initialStatus: DraftStatus;
   autosaveIntervalMs: number;
   snapshotIntervalMs: number;
 };
-
-async function post(url: string, body: unknown) {
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    throw new Error(data.error || `Request failed (${res.status})`);
-  }
-  return res.json();
-}
 
 // Local backup of unsaved text, so a refresh or closed tab can't lose it even if the
 // final save request arrives after the next page has loaded (or never arrives).
@@ -53,23 +41,14 @@ function writeBackup(key: string, backup: Backup | null) {
   }
 }
 
-function logClientEvent(taskId: string, eventType: string, payload: Record<string, unknown> = {}) {
-  const body = JSON.stringify({ taskId, eventType, payload: { ...payload, clientTs: new Date().toISOString() } });
-  // keepalive lets the request finish even if the page is unloading.
-  fetch("/api/events", { method: "POST", headers: { "Content-Type": "application/json" }, body, keepalive: true }).catch(
-    () => {},
-  );
-}
-
 export default function TaskEditor(props: Props) {
   const { sessionId, taskId, autosaveIntervalMs, snapshotIntervalMs } = props;
   const storageKey = backupKey(sessionId, taskId);
   const [content, setContent] = useState(props.initialContent);
-  const [status, setStatus] = useState<DraftStatus>(props.initialStatus);
+  const { status, setStatus, setRevisionCount, registerFlush, registerContentGetter } = useWorkspace();
   const [saveState, setSaveState] = useState<SaveState>("saved");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [confirmEnd, setConfirmEnd] = useState(false);
 
   const contentRef = useRef(props.initialContent);
   const lastSavedRef = useRef(props.initialContent); // content the server has confirmed
@@ -100,15 +79,23 @@ export default function TaskEditor(props: Props) {
         if (toSave === lastSavedRef.current) return;
         setSaveState("saving");
         try {
-          await post("/api/draft", { taskId, content: toSave, trigger });
+          const data = await post<{ revisionCount: number }>("/api/draft", { taskId, content: toSave, trigger });
           markSaved(toSave);
+          setRevisionCount(data.revisionCount);
         } catch (e) {
           setSaveState("not_saved");
           setErrorMsg((e as Error).message);
         }
       }),
-    [enqueue, markSaved, taskId],
+    [enqueue, markSaved, setRevisionCount, taskId],
   );
+
+  // Let navigation and End work save the latest text first.
+  useEffect(() => registerFlush(() => save("navigate")), [registerFlush, save]);
+  useEffect(() => {
+    registerContentGetter(() => contentRef.current);
+    return () => registerContentGetter(null);
+  }, [registerContentGetter]);
 
   // On load, recover unsaved text from the local backup. Only restore it if it was
   // based on the same content the server just returned; otherwise the server has
@@ -117,7 +104,7 @@ export default function TaskEditor(props: Props) {
     const backup = readBackup(storageKey);
     if (!backup) return;
     const server = props.initialContent;
-    if (backup.content !== server && backup.baseContent === server && props.initialStatus !== "complete") {
+    if (backup.content !== server && backup.baseContent === server && status !== "complete") {
       contentRef.current = backup.content;
       setContent(backup.content);
       setSaveState("not_saved");
@@ -154,8 +141,7 @@ export default function TaskEditor(props: Props) {
   useEffect(() => {
     const flush = (trigger: string) => {
       if (contentRef.current === lastSavedRef.current) return;
-      const body = JSON.stringify({ taskId, content: contentRef.current, trigger });
-      navigator.sendBeacon("/api/draft", new Blob([body], { type: "application/json" }));
+      beacon("/api/draft", { taskId, content: contentRef.current, trigger });
     };
     const onVisibility = () => {
       const hidden = document.visibilityState === "hidden";
@@ -187,11 +173,14 @@ export default function TaskEditor(props: Props) {
     setSaveState(clean ? "saved" : "not_saved");
   }
 
-  async function runAction(url: string, body: Record<string, unknown>, after: (data: { status?: DraftStatus }) => void) {
+  type ActionResult = { status?: DraftStatus; revisionCount?: number };
+
+  async function runAction(url: string, body: Record<string, unknown>, after: (data: ActionResult) => void) {
     setBusy(true);
     try {
-      const data = await enqueue(() => post(url, body));
+      const data = await enqueue(() => post<ActionResult>(url, body));
       after(data);
+      if (data.revisionCount !== undefined) setRevisionCount(data.revisionCount);
       setErrorMsg(null);
     } catch (e) {
       setErrorMsg((e as Error).message);
@@ -212,14 +201,6 @@ export default function TaskEditor(props: Props) {
     runAction("/api/task/reopen", { taskId }, (data) => {
       if (data.status) setStatus(data.status);
     });
-
-  const endWork = () => {
-    const toSave = contentRef.current;
-    runAction("/api/session/end", { taskId, content: toSave }, () => {
-      markSaved(toSave);
-      window.location.reload(); // server renders the "continue to survey" page
-    });
-  };
 
   const isComplete = status === "complete";
   const statusLabel = { saved: "Saved", saving: "Saving…", not_saved: "Not saved" }[saveState];
@@ -259,21 +240,6 @@ export default function TaskEditor(props: Props) {
         ) : (
           <button onClick={complete} disabled={busy}>
             Mark complete
-          </button>
-        )}
-        {confirmEnd ? (
-          <>
-            <span>End work and continue to the survey? You won&apos;t be able to edit afterwards.</span>
-            <button onClick={endWork} disabled={busy}>
-              Yes, end work
-            </button>
-            <button onClick={() => setConfirmEnd(false)} disabled={busy}>
-              Cancel
-            </button>
-          </>
-        ) : (
-          <button onClick={() => setConfirmEnd(true)} disabled={busy}>
-            End work
           </button>
         )}
       </div>

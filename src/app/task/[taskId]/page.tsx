@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { getCurrentSession } from "@/lib/session";
-import { getTask, STUDY } from "@/lib/config";
+import { getTask, STUDY, TASKS } from "@/lib/config";
+import { prisma } from "@/lib/db";
 import { ensureDraft } from "@/lib/drafts";
 import { logEvent } from "@/lib/logEvent";
 import { getConversation } from "@/lib/ai";
@@ -8,8 +9,15 @@ import { DRAFT_STATUSES, type DraftStatus } from "@/lib/constants";
 import { getFeatures } from "@/lib/features";
 import ChatPane from "@/components/ChatPane";
 import TaskEditor from "./TaskEditor";
+import TaskNav, { type NavTask } from "./TaskNav";
+import { WorkspaceProvider } from "./Workspace";
 
 export const dynamic = "force-dynamic";
+
+function toStatus(s: string | undefined): DraftStatus {
+  if (s === undefined) return "not_started";
+  return (DRAFT_STATUSES as readonly string[]).includes(s) ? (s as DraftStatus) : "in_progress";
+}
 
 export default async function TaskPage({ params }: { params: Promise<{ taskId: string }> }) {
   const { taskId } = await params;
@@ -44,32 +52,40 @@ export default async function TaskPage({ params }: { params: Promise<{ taskId: s
     revisionCount: draft.revisionCount,
     length: draft.content.length,
   });
-  const status: DraftStatus = (DRAFT_STATUSES as readonly string[]).includes(draft.status)
-    ? (draft.status as DraftStatus)
-    : "in_progress";
+  const status = toStatus(draft.status);
+  const drafts = await prisma.draft.findMany({ where: { sessionId: session.sessionId } });
+  const navTasks: NavTask[] = TASKS.map((t) => ({
+    id: t.id,
+    title: t.title,
+    required: t.required,
+    status: toStatus(drafts.find((d) => d.taskId === t.id)?.status),
+  }));
   const features = getFeatures(session.version);
   const aiMessages = features.ai ? await getConversation(session.sessionId, taskId) : [];
 
   return (
-    <main className="workspace">
-      <section className="task-column">
-        <h1>{task.title}</h1>
-        {task.instructions.map((line, i) => (
-          <p key={i}>{line}</p>
-        ))}
-        <TaskEditor
-          sessionId={session.sessionId}
-          taskId={taskId}
-          initialContent={draft.content}
-          initialStatus={status}
-          autosaveIntervalMs={STUDY.autosaveIntervalMs}
-          snapshotIntervalMs={STUDY.snapshotIntervalMs}
-        />
-      </section>
-      {/* Always rendered (empty when no side features) so the layout is identical across versions. */}
-      <aside className="side-column">
-        {features.ai && <ChatPane taskId={taskId} version={session.version} initialMessages={aiMessages} />}
-      </aside>
-    </main>
+    <WorkspaceProvider taskId={taskId} initialStatus={status} initialRevisionCount={draft.revisionCount}>
+      <main className="workspace">
+        <TaskNav tasks={navTasks} />
+        <section className="task-column">
+          <h1>{task.title}</h1>
+          <p className="task-meta">{task.required ? "Required task" : "Optional task"}</p>
+          {task.instructions.map((line, i) => (
+            <p key={i}>{line}</p>
+          ))}
+          <TaskEditor
+            sessionId={session.sessionId}
+            taskId={taskId}
+            initialContent={draft.content}
+            autosaveIntervalMs={STUDY.autosaveIntervalMs}
+            snapshotIntervalMs={STUDY.snapshotIntervalMs}
+          />
+        </section>
+        {/* Always rendered (empty when no side features) so the layout is identical across versions. */}
+        <aside className="side-column">
+          {features.ai && <ChatPane taskId={taskId} version={session.version} initialMessages={aiMessages} />}
+        </aside>
+      </main>
+    </WorkspaceProvider>
   );
 }

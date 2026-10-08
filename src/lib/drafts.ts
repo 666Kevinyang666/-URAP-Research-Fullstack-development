@@ -2,6 +2,7 @@ import { prisma } from "./db";
 import { logEvent } from "./logEvent";
 import type { CurrentSession } from "./session";
 import type { SnapshotReason } from "./constants";
+import { REQUIRED_TASK_IDS } from "./config";
 
 export class ConflictError extends Error {}
 
@@ -115,8 +116,10 @@ export async function endWork(s: CurrentSession, taskId: string | null, content:
   if (!alreadyEnded) {
     await prisma.session.update({ where: { sessionId: s.sessionId }, data: { endedAt: new Date() } });
   }
+  const completeIds = new Set(drafts.filter((d) => d.status === "complete").map((d) => d.taskId));
   await logEvent(s.sessionId, s.version, taskId, "session_end", {
     alreadyEnded,
+    incompleteRequired: REQUIRED_TASK_IDS.filter((id) => !completeIds.has(id)),
     drafts: drafts.map((d) => ({ taskId: d.taskId, status: d.status, revisionCount: d.revisionCount })),
   });
 }

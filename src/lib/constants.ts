@@ -15,6 +15,8 @@ export const CLIENT_EVENT_TYPES = [
   "visibility_hidden",
   "visibility_visible",
   "task_close",
+  "end_work_prompt",
+  "end_work_cancel",
 ] as const;
 
 export const SID_COOKIE = "sid";
