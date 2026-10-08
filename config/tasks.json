@@ -1,11 +1,50 @@
 [
   {
-    "id": "task1",
-    "title": "Task 1: Placeholder writing task",
+    "id": "creative",
+    "title": "[Placeholder] Task 1: Creative writing",
+    "required": true,
     "instructions": [
-      "These are placeholder instructions. Replace them in config/tasks.json.",
-      "Write a short response (about 200-300 words) to the prompt below.",
-      "Prompt: Describe a change you would make to your neighborhood and explain why."
+      "PLACEHOLDER TEXT. Replace in config/tasks.json before the study runs.",
+      "Creative task: write a short piece (about 200-300 words) in response to the prompt below.",
+      "Prompt: [placeholder creative prompt]"
+    ]
+  },
+  {
+    "id": "evidence-synthesis",
+    "title": "[Placeholder] Task 2: Evidence synthesis",
+    "required": true,
+    "instructions": [
+      "PLACEHOLDER TEXT. Replace in config/tasks.json before the study runs.",
+      "Evidence synthesis task: read the sources below and write a summary (about 250-350 words) of what they show together.",
+      "Sources: [placeholder source A], [placeholder source B], [placeholder source C]"
+    ]
+  },
+  {
+    "id": "strategy",
+    "title": "[Placeholder] Task 3: Open-ended strategy",
+    "required": true,
+    "instructions": [
+      "PLACEHOLDER TEXT. Replace in config/tasks.json before the study runs.",
+      "Strategy task: propose and justify an approach (about 250-350 words) to the scenario below.",
+      "Scenario: [placeholder strategy scenario]"
+    ]
+  },
+  {
+    "id": "optional-1",
+    "title": "[Placeholder] Optional task A",
+    "required": false,
+    "instructions": [
+      "PLACEHOLDER TEXT. Replace in config/tasks.json before the study runs.",
+      "Optional task: [placeholder instructions]"
+    ]
+  },
+  {
+    "id": "optional-2",
+    "title": "[Placeholder] Optional task B",
+    "required": false,
+    "instructions": [
+      "PLACEHOLDER TEXT. Replace in config/tasks.json before the study runs.",
+      "Optional task: [placeholder instructions]"
     ]
   }
 ]
