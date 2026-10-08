@@ -17,8 +17,10 @@ model Session {
   createdAt DateTime  @default(now())
   endedAt   DateTime?
 
-  drafts    Draft[]
-  snapshots Snapshot[]
+  drafts      Draft[]
+  snapshots   Snapshot[]
+  plans       TaskPlan[]
+  activeTimes TaskActiveTime[]
 }
 
 model Draft {
@@ -46,6 +48,37 @@ model Snapshot {
   session Session @relation(fields: [sessionId], references: [sessionId])
 
   @@index([sessionId, taskId])
+}
+
+// Task plan written before the first edit (sustainable version only). Edits overwrite
+// the row; every submission and edit is also logged as an Event with the full values.
+model TaskPlan {
+  id                Int      @id @default(autoincrement())
+  sessionId         String
+  taskId            String
+  purpose           String // purpose of the deliverable
+  goodEnough        String // what "good enough" looks like
+  timeBudgetMinutes Int
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  session Session @relation(fields: [sessionId], references: [sessionId])
+
+  @@unique([sessionId, taskId])
+}
+
+// Active task time (task open, tab visible, not paused), all versions.
+// Accumulated from browser heartbeats; see POST /api/active-time.
+model TaskActiveTime {
+  id        Int      @id @default(autoincrement())
+  sessionId String
+  taskId    String
+  activeMs  Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  session Session @relation(fields: [sessionId], references: [sessionId])
+
+  @@unique([sessionId, taskId])
 }
 
 // Append-only log. UPDATE and DELETE are blocked by triggers in the init migration.
