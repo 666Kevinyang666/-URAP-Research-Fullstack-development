@@ -81,15 +81,20 @@ export default function TaskEditor(props: Props) {
         if (toSave === lastSavedRef.current) return;
         setSaveState("saving");
         try {
-          const data = await post<{ revisionCount: number }>("/api/draft", { taskId, content: toSave, trigger });
+          const data = await post<{ revisionCount: number; status: DraftStatus }>("/api/draft", {
+            taskId,
+            content: toSave,
+            trigger,
+          });
           markSaved(toSave);
           setRevisionCount(data.revisionCount);
+          setStatus(data.status); // first save moves not_started -> in_progress
         } catch (e) {
           setSaveState("not_saved");
           setErrorMsg((e as Error).message);
         }
       }),
-    [enqueue, markSaved, setRevisionCount, taskId],
+    [enqueue, markSaved, setRevisionCount, setStatus, taskId],
   );
 
   // Let navigation and End work save the latest text first.
