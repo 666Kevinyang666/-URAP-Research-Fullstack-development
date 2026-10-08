@@ -34,6 +34,62 @@ body {
   visibility: hidden;
 }
 
+.editor-wrap {
+  position: relative;
+}
+
+/* Plan form covers the editor (same size) until the plan is saved. */
+.plan-gate {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid #999;
+  padding: 12px;
+  box-sizing: border-box;
+}
+
+.plan-form label {
+  display: block;
+  margin-bottom: 8px;
+}
+
+.plan-form textarea,
+.plan-form input {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  font: inherit;
+  margin-top: 2px;
+}
+
+.plan-form input {
+  max-width: 8em;
+}
+
+.side-panel {
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  padding: 8px 12px;
+  margin-bottom: 12px;
+}
+
+.side-panel summary {
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.plan-view dt {
+  font-size: 0.85em;
+  color: #555;
+  margin-top: 6px;
+}
+
+.plan-view dd {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
 .pause-banner {
   position: absolute;
   top: 0;

@@ -13,6 +13,8 @@ import TaskNav, { type NavTask } from "./TaskNav";
 import { PauseBanner, WorkspaceProvider } from "./Workspace";
 import { getPauseState } from "@/lib/pause";
 import { getEffort } from "@/lib/effort";
+import { getPlan } from "@/lib/plans";
+import { PlanPanel } from "./Plan";
 
 export const dynamic = "force-dynamic";
 
@@ -62,11 +64,12 @@ export default async function TaskPage({ params }: { params: Promise<{ taskId: s
     required: t.required,
     status: toStatus(drafts.find((d) => d.taskId === t.id)?.status),
   }));
-  const [pauseState, effort] = await Promise.all([
+  const features = getFeatures(session.version);
+  const [pauseState, effort, plan] = await Promise.all([
     getPauseState(session.sessionId),
     getEffort(session.sessionId, taskId),
+    features.taskPlan ? getPlan(session.sessionId, taskId) : null,
   ]);
-  const features = getFeatures(session.version);
   const aiMessages = features.ai ? await getConversation(session.sessionId, taskId) : [];
 
   return (
@@ -77,6 +80,8 @@ export default async function TaskPage({ params }: { params: Promise<{ taskId: s
       initialActiveMs={effort.activeMs}
       initialPaused={pauseState.paused}
       activeTimeFlushIntervalMs={STUDY.activeTimeFlushIntervalMs}
+      planRequired={features.taskPlan}
+      initialPlan={plan}
     >
       <main className="workspace">
         <TaskNav tasks={navTasks} />
@@ -97,6 +102,7 @@ export default async function TaskPage({ params }: { params: Promise<{ taskId: s
         </section>
         {/* Always rendered (empty when no side features) so the layout is identical across versions. */}
         <aside className="side-column">
+          {features.taskPlan && <PlanPanel />}
           {features.ai && <ChatPane taskId={taskId} version={session.version} initialMessages={aiMessages} />}
         </aside>
       </main>

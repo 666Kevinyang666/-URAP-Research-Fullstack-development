@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { DraftStatus } from "@/lib/constants";
 import { beacon, logClientEvent, post } from "@/lib/clientApi";
 import { useWorkspace } from "./Workspace";
+import { PlanGate } from "./Plan";
 
 type SaveState = "saved" | "saving" | "not_saved";
 
@@ -45,7 +46,7 @@ export default function TaskEditor(props: Props) {
   const { sessionId, taskId, autosaveIntervalMs, snapshotIntervalMs } = props;
   const storageKey = backupKey(sessionId, taskId);
   const [content, setContent] = useState(props.initialContent);
-  const { status, setStatus, setRevisionCount, registerFlush, registerContentGetter, paused, pause, pauseError } =
+  const { status, setStatus, setRevisionCount, registerFlush, registerContentGetter, paused, pause, pauseError, needsPlan } =
     useWorkspace();
   const [saveState, setSaveState] = useState<SaveState>("saved");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -217,19 +218,22 @@ export default function TaskEditor(props: Props) {
         </span>
       </div>
 
-      <textarea
-        className="editor"
-        value={content}
-        readOnly={isComplete || paused}
-        onChange={(e) => onChange(e.target.value)}
-        onFocus={() => logClientEvent(taskId, "editor_focus")}
-        onBlur={() => {
-          logClientEvent(taskId, "editor_blur", { length: contentRef.current.length });
-          save("blur");
-        }}
-        aria-label="Your response"
-        placeholder={isComplete ? "" : "Start writing here…"}
-      />
+      <div className="editor-wrap">
+        <textarea
+          className="editor"
+          value={content}
+          readOnly={isComplete || paused || needsPlan}
+          onChange={(e) => onChange(e.target.value)}
+          onFocus={() => logClientEvent(taskId, "editor_focus")}
+          onBlur={() => {
+            logClientEvent(taskId, "editor_blur", { length: contentRef.current.length });
+            save("blur");
+          }}
+          aria-label="Your response"
+          placeholder={isComplete ? "" : "Start writing here…"}
+        />
+        <PlanGate />
+      </div>
 
       {errorMsg && <p className="save-status not-saved">{errorMsg}</p>}
       {pauseError && <p className="save-status not-saved">Could not pause: {pauseError}</p>}
@@ -240,7 +244,7 @@ export default function TaskEditor(props: Props) {
             Reopen task
           </button>
         ) : (
-          <button onClick={complete} disabled={busy}>
+          <button onClick={complete} disabled={busy || needsPlan}>
             Mark complete
           </button>
         )}

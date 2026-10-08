@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { DraftStatus } from "@/lib/constants";
+import type { Plan } from "@/lib/plans";
 import { post } from "@/lib/clientApi";
 import { useActiveTime } from "./useActiveTime";
 
@@ -16,6 +17,11 @@ type WorkspaceValue = {
   setStatus: (s: DraftStatus) => void;
   revisionCount: number;
   setRevisionCount: (n: number) => void;
+  /** Task plan (versions with features.taskPlan). */
+  plan: Plan | null;
+  setPlan: (p: Plan) => void;
+  /** True until the plan is submitted, in versions that require one; the editor is locked meanwhile. */
+  needsPlan: boolean;
   /** Live active task time in ms (excludes paused and hidden-tab time). */
   activeMs: number;
   paused: boolean;
@@ -45,6 +51,8 @@ type Props = {
   initialActiveMs: number;
   initialPaused: boolean;
   activeTimeFlushIntervalMs: number;
+  planRequired: boolean;
+  initialPlan: Plan | null;
   children: React.ReactNode;
 };
 
@@ -54,6 +62,8 @@ export function WorkspaceProvider(props: Props) {
   const [revisionCount, setRevisionCount] = useState(props.initialRevisionCount);
   const [paused, setPaused] = useState(props.initialPaused);
   const [pauseError, setPauseError] = useState<string | null>(null);
+  const [plan, setPlan] = useState(props.initialPlan);
+  const needsPlan = props.planRequired && plan === null;
   const flushers = useRef(new Set<() => Promise<unknown>>());
   const contentGetter = useRef<(() => string) | null>(null);
 
@@ -125,6 +135,9 @@ export function WorkspaceProvider(props: Props) {
       setStatus,
       revisionCount,
       setRevisionCount,
+      plan,
+      setPlan,
+      needsPlan,
       activeMs,
       paused,
       pauseError,
@@ -135,7 +148,7 @@ export function WorkspaceProvider(props: Props) {
       leaveTo,
       endWork,
     }),
-    [taskId, status, revisionCount, activeMs, paused, pauseError, pause, resume, registerFlush, registerContentGetter, leaveTo, endWork],
+    [taskId, status, revisionCount, plan, needsPlan, activeMs, paused, pauseError, pause, resume, registerFlush, registerContentGetter, leaveTo, endWork],
   );
 
   return (
