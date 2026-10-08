@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import type { Version } from "@/lib/constants";
 import type { AiMessage } from "@/lib/ai";
+import { notifyAiRequestSettled } from "@/lib/aiRequestCount"; // [Nitin, week 2] effort/checkpoint hook
 
 type Props = {
   taskId: string;
@@ -60,6 +61,9 @@ export default function ChatPane({ taskId, version, initialMessages }: Props) {
       setInput(text);
       setMessages((m) => m.filter((msg) => msg.id !== userMsg.id));
     }
+    // [Nitin, week 2] Effort/checkpoint hook: refresh this task's AI request count
+    // (onAiRequestCount subscribers in @/lib/aiRequestCount). No effect on the chat itself.
+    notifyAiRequestSettled(taskId);
   }
 
   async function copyReply(id: number, content: string) {
