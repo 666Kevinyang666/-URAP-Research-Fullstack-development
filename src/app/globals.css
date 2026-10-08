@@ -24,6 +24,27 @@ body {
   min-width: 0;
 }
 
+.task-column {
+  position: relative;
+}
+
+/* While paused, the task and side panels are hidden but keep their size. */
+.is-paused .task-column > :not(.pause-banner),
+.is-paused .side-column > * {
+  visibility: hidden;
+}
+
+.pause-banner {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  border: 1px solid #999;
+  background: #fff;
+  padding: 16px;
+  z-index: 1;
+}
+
 .task-nav h2 {
   font-size: 1em;
   margin: 0 0 8px;

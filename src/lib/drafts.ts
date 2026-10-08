@@ -3,6 +3,7 @@ import { logEvent } from "./logEvent";
 import type { CurrentSession } from "./session";
 import type { SnapshotReason } from "./constants";
 import { REQUIRED_TASK_IDS } from "./config";
+import { getEffort } from "./effort";
 
 export class ConflictError extends Error {}
 
@@ -120,6 +121,11 @@ export async function endWork(s: CurrentSession, taskId: string | null, content:
   await logEvent(s.sessionId, s.version, taskId, "session_end", {
     alreadyEnded,
     incompleteRequired: REQUIRED_TASK_IDS.filter((id) => !completeIds.has(id)),
-    drafts: drafts.map((d) => ({ taskId: d.taskId, status: d.status, revisionCount: d.revisionCount })),
+    drafts: await Promise.all(
+      drafts.map(async (d) => {
+        const effort = await getEffort(s.sessionId, d.taskId);
+        return { taskId: d.taskId, status: d.status, ...effort };
+      }),
+    ),
   });
 }

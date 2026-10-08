@@ -45,7 +45,8 @@ export default function TaskEditor(props: Props) {
   const { sessionId, taskId, autosaveIntervalMs, snapshotIntervalMs } = props;
   const storageKey = backupKey(sessionId, taskId);
   const [content, setContent] = useState(props.initialContent);
-  const { status, setStatus, setRevisionCount, registerFlush, registerContentGetter } = useWorkspace();
+  const { status, setStatus, setRevisionCount, registerFlush, registerContentGetter, paused, pause, pauseError } =
+    useWorkspace();
   const [saveState, setSaveState] = useState<SaveState>("saved");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -219,7 +220,7 @@ export default function TaskEditor(props: Props) {
       <textarea
         className="editor"
         value={content}
-        readOnly={isComplete}
+        readOnly={isComplete || paused}
         onChange={(e) => onChange(e.target.value)}
         onFocus={() => logClientEvent(taskId, "editor_focus")}
         onBlur={() => {
@@ -231,6 +232,7 @@ export default function TaskEditor(props: Props) {
       />
 
       {errorMsg && <p className="save-status not-saved">{errorMsg}</p>}
+      {pauseError && <p className="save-status not-saved">Could not pause: {pauseError}</p>}
 
       <div className="toolbar">
         {isComplete ? (
@@ -242,6 +244,9 @@ export default function TaskEditor(props: Props) {
             Mark complete
           </button>
         )}
+        <button type="button" onClick={pause} disabled={busy || paused}>
+          Pause
+        </button>
       </div>
     </div>
   );

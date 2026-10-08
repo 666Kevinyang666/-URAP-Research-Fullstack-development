@@ -10,7 +10,9 @@ import { getFeatures } from "@/lib/features";
 import ChatPane from "@/components/ChatPane";
 import TaskEditor from "./TaskEditor";
 import TaskNav, { type NavTask } from "./TaskNav";
-import { WorkspaceProvider } from "./Workspace";
+import { PauseBanner, WorkspaceProvider } from "./Workspace";
+import { getPauseState } from "@/lib/pause";
+import { getEffort } from "@/lib/effort";
 
 export const dynamic = "force-dynamic";
 
@@ -60,14 +62,26 @@ export default async function TaskPage({ params }: { params: Promise<{ taskId: s
     required: t.required,
     status: toStatus(drafts.find((d) => d.taskId === t.id)?.status),
   }));
+  const [pauseState, effort] = await Promise.all([
+    getPauseState(session.sessionId),
+    getEffort(session.sessionId, taskId),
+  ]);
   const features = getFeatures(session.version);
   const aiMessages = features.ai ? await getConversation(session.sessionId, taskId) : [];
 
   return (
-    <WorkspaceProvider taskId={taskId} initialStatus={status} initialRevisionCount={draft.revisionCount}>
+    <WorkspaceProvider
+      taskId={taskId}
+      initialStatus={status}
+      initialRevisionCount={draft.revisionCount}
+      initialActiveMs={effort.activeMs}
+      initialPaused={pauseState.paused}
+      activeTimeFlushIntervalMs={STUDY.activeTimeFlushIntervalMs}
+    >
       <main className="workspace">
         <TaskNav tasks={navTasks} />
         <section className="task-column">
+          <PauseBanner />
           <h1>{task.title}</h1>
           <p className="task-meta">{task.required ? "Required task" : "Optional task"}</p>
           {task.instructions.map((line, i) => (
