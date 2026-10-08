@@ -5,19 +5,22 @@ body {
   line-height: 1.4;
 }
 
+/* Same grid in every version, so the editor is the same size whether or not
+   the side column has content (it stays empty for the "none" version). */
 .workspace {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
   gap: 16px;
-  flex-wrap: wrap;
 }
 
-.task-column {
-  flex: 2 1 480px;
-  min-width: 0;
+@media (max-width: 900px) {
+  .workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
-.chat-column {
-  flex: 1 1 300px;
+.task-column,
+.side-column {
   min-width: 0;
 }
 

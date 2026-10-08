@@ -5,6 +5,7 @@ import { ensureDraft } from "@/lib/drafts";
 import { logEvent } from "@/lib/logEvent";
 import { getConversation } from "@/lib/ai";
 import { DRAFT_STATUSES, type DraftStatus } from "@/lib/constants";
+import { getFeatures } from "@/lib/features";
 import ChatPane from "@/components/ChatPane";
 import TaskEditor from "./TaskEditor";
 
@@ -46,7 +47,8 @@ export default async function TaskPage({ params }: { params: Promise<{ taskId: s
   const status: DraftStatus = (DRAFT_STATUSES as readonly string[]).includes(draft.status)
     ? (draft.status as DraftStatus)
     : "in_progress";
-  const aiMessages = session.version !== "none" ? await getConversation(session.sessionId, taskId) : [];
+  const features = getFeatures(session.version);
+  const aiMessages = features.ai ? await getConversation(session.sessionId, taskId) : [];
 
   return (
     <main className="workspace">
@@ -64,11 +66,10 @@ export default async function TaskPage({ params }: { params: Promise<{ taskId: s
           snapshotIntervalMs={STUDY.snapshotIntervalMs}
         />
       </section>
-      {session.version !== "none" && (
-        <aside className="chat-column">
-          <ChatPane taskId={taskId} version={session.version} initialMessages={aiMessages} />
-        </aside>
-      )}
+      {/* Always rendered (empty when no side features) so the layout is identical across versions. */}
+      <aside className="side-column">
+        {features.ai && <ChatPane taskId={taskId} version={session.version} initialMessages={aiMessages} />}
+      </aside>
     </main>
   );
 }
