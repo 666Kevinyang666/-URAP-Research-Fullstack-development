@@ -38,10 +38,28 @@ Useful commands:
 
 Never commit `.env` or API keys. This repo is public.
 
+## Versions and feature flags
+
+`src/lib/features.ts` maps each version to the features it gets. Check flags (`getFeatures(version)`)
+instead of comparing version strings. Layout and editor size are identical in every version; the side
+column is always rendered, and stays empty when a version has no side features.
+
+| Flag | none | standard | sustainable | What it controls |
+| --- | --- | --- | --- | --- |
+| `ai` | – | ✓ | ✓ | AI chat pane |
+| `taskPlan` | – | – | ✓ | Plan form before the first edit of each task, plan panel, `POST /api/plan` |
+| `effortDisplay` | – | – | ✓ | Effort panel (metrics are logged in every version) |
+| `checkpoints` | – | – | ✓ | Completion checkpoints (Kevin, not built yet) |
+| `peerChat` | – | – | ✓ | Peer chat (Kevin, not built yet) |
+
 ## Configuration
 
-- `config/tasks.json`: task ids, titles and instructions (placeholders for now).
-- `config/study.json`: `qualtricsUrl` (survey link), `autosaveIntervalMs` (3 s), `snapshotIntervalMs` (5 min).
+- `config/tasks.json`: an array of `{ id, title, required, instructions[] }`, shown in this order in
+  the task list. `required: false` tasks are optional and don't trigger the End work warning.
+  Five placeholder tasks for now: three required (creative, evidence synthesis, strategy), two optional.
+  Changing task ids orphans existing rows for the old ids.
+- `config/study.json`: `qualtricsUrl` (survey link), `autosaveIntervalMs` (3 s), `snapshotIntervalMs` (5 min),
+  `activeTimeFlushIntervalMs` (15 s: how often the browser sends active time).
 - `OPENAI_API_KEY` / `OPENAI_MODEL` (in `.env`): credentials and model for the AI proxy. `OPENAI_MODEL`
   defaults to `gpt-4o-mini` when unset — the same model is used for both AI versions, per the brief.
 
@@ -58,6 +76,10 @@ Never commit `.env` or API keys. This repo is public.
 | `POST /api/session/end` | End work: saves, snapshots every draft, sets `endedAt`. |
 | `POST /api/events` | Browser interaction events (allow-listed types only). |
 | `POST /api/ai` | AI proxy `{ taskId, message }`. Hidden/unused in the `none` version. |
+| `POST /api/pause` | Pause or resume `{ taskId, action: "pause" \| "resume" }`. |
+| `POST /api/active-time` | Active-time heartbeat `{ taskId, deltaMs, reason }`. |
+| `GET /api/effort?taskId=` | `{ activeMs, aiRequestCount, revisionCount }` for a task. |
+| `POST /api/plan` | Create or edit a task plan `{ taskId, purpose, goodEnough, timeBudgetMinutes }` (`taskPlan` versions only). |
 
 ## Saving behavior
 
@@ -67,6 +89,47 @@ Never commit `.env` or API keys. This repo is public.
   copy is older, so a refresh never loses text, even when the final save arrives after the page reloads.
 - `revisionCount` increases only when the saved content differs from the stored content.
 - A completed task is read-only until it is reopened. After **End work** the session is closed for editing.
+- Switching tasks in the sidebar saves the current draft and active time first, then loads the other task.
+
+## Task workflow
+
+- **Navigation**: the sidebar lists every task with its required/optional label and status. Participants
+  can move between tasks freely.
+- **End work** (sidebar): if any required task isn't complete, a dialog lists those tasks but still allows
+  ending.
+- **Pause / resume** (all versions): hides the task and side panels and stops the active-time clock.
+  The pause is session-wide and survives refreshes and task switches. The current state is the latest
+  `task_pause` / `task_resume` event.
+- **Task plan** (`taskPlan`): before the first edit of each task, a form covers the editor asking for the
+  deliverable's purpose, what "good enough" looks like, and a time budget in minutes. The editor is locked
+  until it's saved. The plan is then shown in a collapsible, editable panel.
+
+## Effort metrics
+
+Logged in every version; shown in the effort panel only where `effortDisplay` is on.
+
+- **Active time** per task (`TaskActiveTime.activeMs`): time with the task page open, the tab visible and
+  the session not paused. The browser sends increments every 15 s, on pause and navigation, and by beacon
+  when the tab is hidden or closed. A single increment over 10 min is clamped and logged as
+  `active_time_clamped`. Idle time with the tab visible still counts.
+- **AI requests** per task: count of `ai_user_message` events. These are logged before the model call,
+  so **requests that end in an error count too**.
+- **Revisions**: `Draft.revisionCount`.
+
+For completion checkpoints:
+
+```ts
+// server
+import { countAiRequests } from "@/lib/effort";
+const n = await countAiRequests(sessionId, taskId);
+
+// browser
+import { onAiRequestCount } from "@/lib/aiRequestCount";
+useEffect(() => onAiRequestCount(taskId, (n) => { /* show a checkpoint at n === ... */ }), [taskId]);
+```
+
+`ChatPane` calls `notifyAiRequestSettled(taskId)` after each request, which re-reads the count from the
+server and notifies subscribers.
 
 ## Schema
 
@@ -77,6 +140,9 @@ See `prisma/schema.prisma`.
   (`not_started` | `in_progress` | `complete`), `updatedAt`, `revisionCount`.
 - **Snapshot**: copies of draft content with `reason`: `interval` (every 5 min while a task is open),
   `complete`, `reopen`, `end_work`.
+- **TaskPlan**: one row per (`sessionId`, `taskId`): `purpose`, `goodEnough`, `timeBudgetMinutes`,
+  `createdAt`, `updatedAt`. Edits overwrite the row; the history is in `task_plan_*` events.
+- **TaskActiveTime**: one row per (`sessionId`, `taskId`): `activeMs`, `updatedAt`.
 - **Event**: append-only log: `sessionId`, `version`, `taskId` (nullable), `eventType`, `payload` (JSON),
   `timestamp` (server time). SQLite triggers reject any UPDATE or DELETE on this table.
 
@@ -86,7 +152,7 @@ See `prisma/schema.prisma`.
 | --- | --- | --- |
 | `session_start` | server | `userAgent` |
 | `session_resume` | server | `requestedVersion`, `versionMismatch`, `userAgent` |
-| `session_end` | server | `alreadyEnded`, per-draft `status` / `revisionCount` |
+| `session_end` | server | `alreadyEnded`, `incompleteRequired` (task ids), per-task `status` / `activeMs` / `aiRequestCount` / `revisionCount` |
 | `survey_redirect` | server | `from` |
 | `task_open` | server | `status`, `revisionCount`, `length` |
 | `draft_save` | server (only when content changed) | `trigger`, `revisionCount`, `length` |
@@ -97,6 +163,13 @@ See `prisma/schema.prisma`.
 | `ai_user_message` | server (`/api/ai`, before calling the model) | `text`, `model` |
 | `ai_assistant_message` | server (`/api/ai`, on a successful reply) | `text`, `model` |
 | `ai_error` | server (`/api/ai`, on a failed call) | `message`, `model` |
+| `task_pause` | server (`/api/pause`, on a state change) | `clientTs` |
+| `task_resume` | server (`/api/pause`, on a state change) | `clientTs`, `pausedMs`, `pausedOnTaskId` |
+| `task_plan_submitted` | server (`/api/plan`, first save) | `purpose`, `goodEnough`, `timeBudgetMinutes` |
+| `task_plan_updated` | server (`/api/plan`, edit with changes) | `changes: { field: { from, to } }` |
+| `active_time_clamped` | server (`/api/active-time`) | `reportedMs`, `acceptedMs`, `reason` |
+| `end_work_prompt` | browser (End work dialog opened) | `incompleteRequired`, `clientTs` |
+| `end_work_cancel` | browser (dialog dismissed) | `incompleteRequired`, `clientTs` |
 
 ## AI proxy
 
