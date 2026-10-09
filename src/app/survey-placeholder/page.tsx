@@ -22,11 +22,11 @@ export default async function SurveyPlaceholder({
         </p>
       )}
       <p>
-        In the full flow, finishing the endline survey here would hand off to the AI interview
-        (not built yet), using this same session ID, before the completion page.
+        In the full flow, finishing the endline survey here hands off to the AI interview, using
+        this same session ID, before the completion page.
       </p>
       <p>
-        <a href="/">Return to workspace</a>
+        <a href="/interview">Continue to interview</a>
       </p>
     </main>
   );

@@ -65,8 +65,12 @@ column is always rendered, and stays empty when a version has no side features.
   `checkpointAiRequestThresholds` (default `[3, 6]`) — AI-request counts at which the completion
   checkpoint opens; the last one opens with the peer check-in first. Short by design, for demos — see
   `src/lib/checkpoints.ts`.
-- `OPENAI_API_KEY` / `OPENAI_MODEL` (in `.env`): credentials and model for the AI proxy. `OPENAI_MODEL`
-  defaults to `gpt-5.6-terra` when unset — the same model is used for both AI versions, per the brief.
+- `OPENAI_API_KEY` / `OPENAI_MODEL` (in `.env`): credentials and model for the AI proxy and the AI
+  interview. `OPENAI_MODEL` defaults to `gpt-5.6-terra` when unset — the same model is used for both
+  AI versions' task chat, per the brief.
+- `config/interview.json`: `questions`, the fixed guide the end-of-session AI interview (`/interview`)
+  works through one at a time. AI/peer-specific questions are skipped per version — see
+  `buildInterviewSystemPrompt` in `@/lib/interview`.
 
 ## Routes
 
@@ -76,6 +80,8 @@ column is always rendered, and stays empty when a version has no side features.
 | `GET /task/[taskId]` | Task page: instructions, editor, AI chat pane (hidden for `none`). |
 | `GET /survey` | "Continue to survey": redirects to `qualtricsUrl` with `?sid=` appended. |
 | `GET /survey-placeholder` | Local stand-in for the Qualtrics survey (the default `qualtricsUrl`). Replace before the study runs. |
+| `GET /interview` | End-of-session AI interview. Every version, including `none`. Not gated on `endedAt`. |
+| `GET /complete` | Static completion page; "Finish interview" lands here. |
 | `POST /api/draft` | Autosave `{ taskId, content, trigger }`. |
 | `POST /api/snapshot` | Save plus interval snapshot `{ taskId, content }`. |
 | `POST /api/task/complete` / `reopen` | Change task status `{ taskId, content? }`. |
@@ -89,6 +95,7 @@ column is always rendered, and stays empty when a version has no side features.
 | `POST /api/checkpoint` | Record a checkpoint decision `{ taskId, index, action: "finish" \| "continue" \| "pause" \| "flag", note? }` (`checkpoints` versions only; `note` required for `continue`). |
 | `GET /api/peer?taskId=` | `{ peerSessionId, available, messages }` for the peer check-in room (`peerChat` versions only). |
 | `POST /api/peer` | `{ taskId, text }` to send a peer message, or `{ taskId, index, end: "returned" \| "declined" \| "left" }` to close the check-in stage. |
+| `POST /api/interview` | `{ message }` to talk, or `{ finish: true }` to log that the interview ended. Every version; works on an ended session. |
 
 ## Saving behavior
 
@@ -185,22 +192,32 @@ See `prisma/schema.prisma`.
 | `peer_paired` | server (`/start?...&peer=`) | `peerSessionId` |
 | `peer_message` | server (`/api/peer`) | `text`, `peerSessionId` (the recipient) |
 | `peer_checkin_ended` | server (`/api/peer`) | `index`, `outcome` (`returned`/`declined`/`left`/`peer_unavailable`) |
+| `interview_user_message` | server (`/api/interview`, before calling the model) | `text`, `model` |
+| `interview_assistant_message` | server (`/interview` page load for the opening line; `/api/interview` for replies) | `text`, `model` |
+| `interview_error` | server (`/api/interview`, on a failed call) | `message`, `model` |
+| `interview_finished` | server (`/api/interview`, `{ finish: true }`) | — |
 
-## AI proxy
+## AI proxy and AI interview
 
-`POST /api/ai` with `{ taskId, message }` (session via the `sid` cookie, like the other API routes).
-It is the only code path that talks to OpenAI:
+Two code paths talk to OpenAI, both through `callChatModel` in `@/lib/ai`:
 
-- Builds a system prompt from the task instructions and the participant's current saved draft
+- `POST /api/ai` with `{ taskId, message }` — the task chat pane (`taskPlan`/`ai` versions only).
+  Builds a system prompt from the task instructions and the participant's current saved draft
   (`buildSystemPrompt` in `@/lib/ai`), plus prior turns rebuilt from the event log — the conversation
-  needs no separate table, so it survives a refresh or switching tasks and back.
-- For the `sustainable` version, the prompt also tells the model not to routinely invite further
-  revisions, per the brief's cognitive-closure manipulation. `standard` gets the same model with no
-  such restriction. Both AI versions use the same `OPENAI_MODEL`.
-- Logs `ai_user_message` before the call and `ai_assistant_message` (or `ai_error` on failure)
-  after, via `logEvent` — see below.
-- Returns `502` with a friendly message if the call fails (including a missing `OPENAI_API_KEY`);
-  the chat pane surfaces that inline.
+  needs no separate table, so it survives a refresh or switching tasks and back. For the `sustainable`
+  version, the prompt also tells the model not to routinely invite further revisions, per the brief's
+  cognitive-closure manipulation. `standard` gets the same model with no such restriction.
+  Logs `ai_user_message` before the call and `ai_assistant_message` (or `ai_error` on failure) after.
+- `POST /api/interview` with `{ message }` — the end-of-session interview (`/interview`), every
+  version including `none`. Walks the fixed `config/interview.json` guide one question at a time
+  (`buildInterviewSystemPrompt` in `@/lib/interview`), skipping AI/peer-specific questions for
+  versions that don't have them. The opening line is static (not model-generated) so the interview
+  starts immediately. Logs `interview_user_message`/`interview_assistant_message`/`interview_error`,
+  the same pattern as the task chat pane.
+
+Both AI versions (and the interview, in every version) use the same `OPENAI_MODEL`. Both return `502`
+with a friendly message if the call fails (including a missing `OPENAI_API_KEY`); the chat UI surfaces
+that inline in either case.
 
 ## Logging from server code
 
