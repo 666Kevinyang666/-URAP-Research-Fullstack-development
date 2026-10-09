@@ -1,5 +1,5 @@
 {
-  "qualtricsUrl": "https://example.qualtrics.com/jfe/form/SV_PLACEHOLDER",
+  "qualtricsUrl": "http://localhost:3000/survey-placeholder",
   "autosaveIntervalMs": 3000,
   "snapshotIntervalMs": 300000,
   "activeTimeFlushIntervalMs": 15000,

@@ -58,7 +58,9 @@ column is always rendered, and stays empty when a version has no side features.
   the task list. `required: false` tasks are optional and don't trigger the End work warning.
   Five placeholder tasks for now: three required (creative, evidence synthesis, strategy), two optional.
   Changing task ids orphans existing rows for the old ids.
-- `config/study.json`: `qualtricsUrl` (survey link), `autosaveIntervalMs` (3 s), `snapshotIntervalMs` (5 min),
+- `config/study.json`: `qualtricsUrl` (survey link — defaults to `/survey-placeholder`, a local stand-in
+  page, so "Continue to survey" doesn't error before a real Qualtrics link exists; replace it before
+  the study runs), `autosaveIntervalMs` (3 s), `snapshotIntervalMs` (5 min),
   `activeTimeFlushIntervalMs` (15 s: how often the browser sends active time), and
   `checkpointAiRequestThresholds` (default `[3, 6]`) — AI-request counts at which the completion
   checkpoint opens; the last one opens with the peer check-in first. Short by design, for demos — see
@@ -73,6 +75,7 @@ column is always rendered, and stays empty when a version has no side features.
 | `GET /start?sid=...&version=...&peer=<otherSid>` | Creates the session, or resumes it if the sid exists (its stored version is never changed). Sets an `sid` cookie used by all later requests and redirects to the first task. `peer` manually pairs this session for the peer check-in — hand out two `/start` links with `peer` pointing at each other's `sid`. |
 | `GET /task/[taskId]` | Task page: instructions, editor, AI chat pane (hidden for `none`). |
 | `GET /survey` | "Continue to survey": redirects to `qualtricsUrl` with `?sid=` appended. |
+| `GET /survey-placeholder` | Local stand-in for the Qualtrics survey (the default `qualtricsUrl`). Replace before the study runs. |
 | `POST /api/draft` | Autosave `{ taskId, content, trigger }`. |
 | `POST /api/snapshot` | Save plus interval snapshot `{ taskId, content }`. |
 | `POST /api/task/complete` / `reopen` | Change task status `{ taskId, content? }`. |
