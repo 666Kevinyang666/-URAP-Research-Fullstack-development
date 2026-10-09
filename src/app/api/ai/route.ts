@@ -3,6 +3,7 @@ import { withSession, error } from "@/lib/api";
 import { prisma } from "@/lib/db";
 import { logEvent } from "@/lib/logEvent";
 import { getTask } from "@/lib/config";
+import { getFeatures } from "@/lib/features";
 import { AI_MODEL, buildSystemPrompt, callChatModel, type ChatMessage } from "@/lib/ai";
 
 const MAX_MESSAGE_LENGTH = 4000;
@@ -12,6 +13,7 @@ const MAX_HISTORY_MESSAGES = 20;
 // Logs ai_user_message before calling the model and ai_assistant_message (or ai_error)
 // after, so the conversation can be replayed from the event log alone.
 export const POST = withSession(async (s, body) => {
+  if (!getFeatures(s.version).ai) return error(403, "AI is not available in this version.");
   if (typeof body.taskId !== "string") return error(400, "taskId is required");
   const task = getTask(body.taskId);
   if (!task) return error(400, "Unknown taskId");
