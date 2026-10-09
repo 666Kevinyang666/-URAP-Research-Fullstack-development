@@ -3,7 +3,7 @@ import type { Task } from "./config";
 import type { Version } from "./constants";
 
 /** Chat model used for both AI versions, configurable without a code change. */
-export const AI_MODEL = process.env.OPENAI_MODEL?.trim() || "gpt-4o-mini";
+export const AI_MODEL = process.env.OPENAI_MODEL?.trim() || "gpt-5.6-terra";
 
 const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
 

@@ -61,7 +61,7 @@ column is always rendered, and stays empty when a version has no side features.
 - `config/study.json`: `qualtricsUrl` (survey link), `autosaveIntervalMs` (3 s), `snapshotIntervalMs` (5 min),
   `activeTimeFlushIntervalMs` (15 s: how often the browser sends active time).
 - `OPENAI_API_KEY` / `OPENAI_MODEL` (in `.env`): credentials and model for the AI proxy. `OPENAI_MODEL`
-  defaults to `gpt-4o-mini` when unset — the same model is used for both AI versions, per the brief.
+  defaults to `gpt-5.6-terra` when unset — the same model is used for both AI versions, per the brief.
 
 ## Routes
 
