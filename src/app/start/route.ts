@@ -4,12 +4,15 @@ import { logEvent } from "@/lib/logEvent";
 import { SID_COOKIE, isVersion, type Version } from "@/lib/constants";
 import { TASKS } from "@/lib/config";
 
-// Study entry point: /start?sid=...&version=none|standard|sustainable
+// Study entry point: /start?sid=...&version=none|standard|sustainable[&peer=<otherSid>]
 // Creates or resumes the session, stores sid in a cookie, and opens the first task.
 export async function GET(req: NextRequest) {
   const sid = req.nextUrl.searchParams.get("sid")?.trim();
   const requestedVersion = req.nextUrl.searchParams.get("version");
   const userAgent = req.headers.get("user-agent");
+  // Manual peer pairing for the peer check-in (sustainable version): the researcher hands
+  // out two /start links with &peer= pointing at each other. See src/lib/peer.ts.
+  const peer = req.nextUrl.searchParams.get("peer")?.trim();
 
   if (!sid || sid.length > 200) {
     return new NextResponse("Missing or invalid sid. Please use the link from the study.", { status: 400 });
@@ -33,6 +36,10 @@ export async function GET(req: NextRequest) {
     version = requestedVersion;
     await prisma.session.create({ data: { sessionId: sid, version } });
     await logEvent(sid, version, null, "session_start", { userAgent });
+  }
+
+  if (peer && peer !== sid) {
+    await logEvent(sid, version, null, "peer_paired", { peerSessionId: peer });
   }
 
   const res = NextResponse.redirect(new URL(`/task/${encodeURIComponent(TASKS[0].id)}`, req.url));

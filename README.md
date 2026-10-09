@@ -49,8 +49,8 @@ column is always rendered, and stays empty when a version has no side features.
 | `ai` | – | ✓ | ✓ | AI chat pane |
 | `taskPlan` | – | – | ✓ | Plan form before the first edit of each task, plan panel, `POST /api/plan` |
 | `effortDisplay` | – | – | ✓ | Effort panel (metrics are logged in every version) |
-| `checkpoints` | – | – | ✓ | Completion checkpoints (Kevin, not built yet) |
-| `peerChat` | – | – | ✓ | Peer chat (Kevin, not built yet) |
+| `checkpoints` | – | – | ✓ | Completion checkpoint dialog, `POST /api/checkpoint` |
+| `peerChat` | – | – | ✓ | Peer check-in room (inside the checkpoint dialog), `POST`/`GET /api/peer` |
 
 ## Configuration
 
@@ -59,7 +59,10 @@ column is always rendered, and stays empty when a version has no side features.
   Five placeholder tasks for now: three required (creative, evidence synthesis, strategy), two optional.
   Changing task ids orphans existing rows for the old ids.
 - `config/study.json`: `qualtricsUrl` (survey link), `autosaveIntervalMs` (3 s), `snapshotIntervalMs` (5 min),
-  `activeTimeFlushIntervalMs` (15 s: how often the browser sends active time).
+  `activeTimeFlushIntervalMs` (15 s: how often the browser sends active time), and
+  `checkpointAiRequestThresholds` (default `[3, 6]`) — AI-request counts at which the completion
+  checkpoint opens; the last one opens with the peer check-in first. Short by design, for demos — see
+  `src/lib/checkpoints.ts`.
 - `OPENAI_API_KEY` / `OPENAI_MODEL` (in `.env`): credentials and model for the AI proxy. `OPENAI_MODEL`
   defaults to `gpt-5.6-terra` when unset — the same model is used for both AI versions, per the brief.
 
@@ -67,7 +70,7 @@ column is always rendered, and stays empty when a version has no side features.
 
 | Route | Purpose |
 | --- | --- |
-| `GET /start?sid=...&version=...` | Creates the session, or resumes it if the sid exists (its stored version is never changed). Sets an `sid` cookie used by all later requests and redirects to the first task. |
+| `GET /start?sid=...&version=...&peer=<otherSid>` | Creates the session, or resumes it if the sid exists (its stored version is never changed). Sets an `sid` cookie used by all later requests and redirects to the first task. `peer` manually pairs this session for the peer check-in — hand out two `/start` links with `peer` pointing at each other's `sid`. |
 | `GET /task/[taskId]` | Task page: instructions, editor, AI chat pane (hidden for `none`). |
 | `GET /survey` | "Continue to survey": redirects to `qualtricsUrl` with `?sid=` appended. |
 | `POST /api/draft` | Autosave `{ taskId, content, trigger }`. |
@@ -80,6 +83,9 @@ column is always rendered, and stays empty when a version has no side features.
 | `POST /api/active-time` | Active-time heartbeat `{ taskId, deltaMs, reason }`. |
 | `GET /api/effort?taskId=` | `{ activeMs, aiRequestCount, revisionCount }` for a task. |
 | `POST /api/plan` | Create or edit a task plan `{ taskId, purpose, goodEnough, timeBudgetMinutes }` (`taskPlan` versions only). |
+| `POST /api/checkpoint` | Record a checkpoint decision `{ taskId, index, action: "finish" \| "continue" \| "pause" \| "flag", note? }` (`checkpoints` versions only; `note` required for `continue`). |
+| `GET /api/peer?taskId=` | `{ peerSessionId, available, messages }` for the peer check-in room (`peerChat` versions only). |
+| `POST /api/peer` | `{ taskId, text }` to send a peer message, or `{ taskId, index, end: "returned" \| "declined" \| "left" }` to close the check-in stage. |
 
 ## Saving behavior
 
@@ -103,6 +109,17 @@ column is always rendered, and stays empty when a version has no side features.
 - **Task plan** (`taskPlan`): before the first edit of each task, a form covers the editor asking for the
   deliverable's purpose, what "good enough" looks like, and a time budget in minutes. The editor is locked
   until it's saved. The plan is then shown in a collapsible, editable panel.
+- **Completion checkpoint** (`checkpoints`): a modal dialog opens automatically once the AI request count
+  for the task reaches a configured threshold (`checkpointAiRequestThresholds`). It shows the plan's
+  "good enough" threshold and four choices — Finish task (completes it), Continue (requires a reason),
+  Pause (uses the usual pause), or Flag for later (optional note) — logged as `checkpoint_resolved`.
+  Dismissing with Esc just re-prompts later (state isn't persisted across dismissals within the visit).
+  At the **last** threshold (`peerChat` versions), the dialog opens on the peer check-in first.
+- **Peer check-in** (`peerChat`): a private two-person text room, manually paired via `/start?...&peer=
+  <otherSid>` (see below) — reuses the Event log like the AI conversation, so no new table. Polls every
+  2.5 s while open. Declining, leaving, or the peer not being available (never paired, or hasn't opened
+  their own link yet) are all handled and logged (`peer_checkin_ended`), then the dialog moves on to the
+  completion checkpoint's stopping choices.
 
 ## Effort metrics
 
@@ -112,24 +129,15 @@ Logged in every version; shown in the effort panel only where `effortDisplay` is
   the session not paused. The browser sends increments every 15 s, on pause and navigation, and by beacon
   when the tab is hidden or closed. A single increment over 10 min is clamped and logged as
   `active_time_clamped`. Idle time with the tab visible still counts.
-- **AI requests** per task: count of `ai_user_message` events. These are logged before the model call,
-  so **requests that end in an error count too**.
+- **AI requests** per task: count of `ai_assistant_message` events, i.e. requests that got a reply. A
+  failed call (`ai_error`) doesn't count — it produced no reply and no change to the participant's work,
+  so it shouldn't inflate this metric or trigger a checkpoint. The raw attempt is still in the event log
+  via `ai_user_message`/`ai_error`, just not in this count.
 - **Revisions**: `Draft.revisionCount`.
 
-For completion checkpoints:
-
-```ts
-// server
-import { countAiRequests } from "@/lib/effort";
-const n = await countAiRequests(sessionId, taskId);
-
-// browser
-import { onAiRequestCount } from "@/lib/aiRequestCount";
-useEffect(() => onAiRequestCount(taskId, (n) => { /* show a checkpoint at n === ... */ }), [taskId]);
-```
-
 `ChatPane` calls `notifyAiRequestSettled(taskId)` after each request, which re-reads the count from the
-server and notifies subscribers.
+server (`countAiRequests` in `@/lib/effort`) and notifies `onAiRequestCount` subscribers — both the
+effort panel and the completion checkpoint (`src/app/task/[taskId]/Checkpoint.tsx`) use this.
 
 ## Schema
 
@@ -170,6 +178,10 @@ See `prisma/schema.prisma`.
 | `active_time_clamped` | server (`/api/active-time`) | `reportedMs`, `acceptedMs`, `reason` |
 | `end_work_prompt` | browser (End work dialog opened) | `incompleteRequired`, `clientTs` |
 | `end_work_cancel` | browser (dialog dismissed) | `incompleteRequired`, `clientTs` |
+| `checkpoint_resolved` | server (`/api/checkpoint`) | `index`, `action` (`finish`/`continue`/`pause`/`flag`), `note?` |
+| `peer_paired` | server (`/start?...&peer=`) | `peerSessionId` |
+| `peer_message` | server (`/api/peer`) | `text`, `peerSessionId` (the recipient) |
+| `peer_checkin_ended` | server (`/api/peer`) | `index`, `outcome` (`returned`/`declined`/`left`/`peer_unavailable`) |
 
 ## AI proxy
 

@@ -153,6 +153,24 @@ body {
   max-width: 480px;
 }
 
+.checkpoint-dialog {
+  max-width: 420px;
+  width: 100%;
+}
+
+.checkpoint-dialog form label {
+  display: block;
+  margin-bottom: 8px;
+}
+
+.checkpoint-dialog form textarea {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  font: inherit;
+  margin-top: 2px;
+}
+
 textarea.editor {
   width: 100%;
   box-sizing: border-box;

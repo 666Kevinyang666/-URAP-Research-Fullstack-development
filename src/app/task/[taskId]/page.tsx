@@ -16,6 +16,9 @@ import { getEffort } from "@/lib/effort";
 import { getPlan } from "@/lib/plans";
 import { PlanPanel } from "./Plan";
 import EffortPanel from "./EffortPanel";
+import { CHECKPOINT_THRESHOLDS, PEER_CHECKPOINT_INDEX, getResolvedCheckpointIndices } from "@/lib/checkpoints";
+import { getPeerCheckinDoneIndices } from "@/lib/peer";
+import Checkpoint from "./Checkpoint";
 
 export const dynamic = "force-dynamic";
 
@@ -72,6 +75,12 @@ export default async function TaskPage({ params }: { params: Promise<{ taskId: s
     features.taskPlan ? getPlan(session.sessionId, taskId) : null,
   ]);
   const aiMessages = features.ai ? await getConversation(session.sessionId, taskId) : [];
+  const [resolvedCheckpointIndices, peerDoneIndices] = features.checkpoints
+    ? await Promise.all([
+        getResolvedCheckpointIndices(session.sessionId, taskId),
+        getPeerCheckinDoneIndices(session.sessionId, taskId),
+      ])
+    : [[], []];
 
   return (
     <WorkspaceProvider
@@ -107,6 +116,16 @@ export default async function TaskPage({ params }: { params: Promise<{ taskId: s
           {features.effortDisplay && <EffortPanel initialAiRequestCount={effort.aiRequestCount} />}
           {features.ai && <ChatPane taskId={taskId} version={session.version} initialMessages={aiMessages} />}
         </aside>
+        {features.checkpoints && (
+          <Checkpoint
+            thresholds={CHECKPOINT_THRESHOLDS}
+            peerIndex={PEER_CHECKPOINT_INDEX}
+            peerEnabled={features.peerChat}
+            initialAiRequestCount={effort.aiRequestCount}
+            initialResolvedIndices={resolvedCheckpointIndices}
+            initialPeerDoneIndices={peerDoneIndices}
+          />
+        )}
       </main>
     </WorkspaceProvider>
   );
