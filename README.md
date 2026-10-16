@@ -66,7 +66,7 @@ column is always rendered, and stays empty when a version has no side features.
 | `taskPlan` | – | – | ✓ | Plan form before the first edit of each task, plan panel, `POST /api/plan` |
 | `effortDisplay` | – | – | ✓ | Effort panel (metrics are logged in every version) |
 | `checkpoints` | – | – | ✓ | Completion checkpoint: time-budget pop-up (`POST /api/budget-checkpoint`) or AI-request dialog (`POST /api/checkpoint`), per `checkpointTrigger` |
-| `peerChat` | – | – | ✓ | Peer check-in room (inside the AI-request checkpoint dialog), `POST`/`GET /api/peer` |
+| `peerChat` | – | – | ✓ | Peer check-in: v2 voice room at `peerCheckinMinutes` on the session clock (`POST`/`GET /api/peer-checkin-v2`), plus the legacy text room inside the AI-request checkpoint dialog (`POST`/`GET /api/peer`) |
 | `breakPrompts` | – | – | ✓ | Break prompts at `breakPromptMinutes` on the session clock, `POST /api/break-prompt` |
 
 ## Configuration
@@ -141,6 +141,8 @@ column is always rendered, and stays empty when a version has no side features.
 | `POST /api/checkpoint` | AI-request checkpoint: record a decision `{ taskId, index, action: "finish" \| "continue" \| "pause" \| "flag", note? }` (`checkpoints` versions only; `note` required for `continue`). |
 | `GET /api/peer?taskId=` | `{ peerSessionId, available, messages }` for the peer check-in room (`peerChat` versions only). |
 | `POST /api/peer` | `{ taskId, text }` to send a peer message, or `{ taskId, index, end: "returned" \| "declined" \| "left" }` to close the check-in stage. |
+| `GET /api/peer-checkin-v2` | `{ peerSessionId, available, messages }` for the v2 voice room (`peerChat` versions only; session-scoped, not per-task). |
+| `POST /api/peer-checkin-v2` | `{ shown: true }` (once, logs it was shown) · `{ audioBase64, mimeType, durationMs }` or `{ text }` to send a message · `{ end: "returned" \| "declined" \| "left" \| "peer_unavailable" }` to close the room. |
 | `POST /api/interview` | `{ message }` to talk, or `{ finish: true }` to log that the interview ended. Every version; works on an ended session. |
 
 ## Saving behavior
@@ -216,7 +218,31 @@ one prompt is open at a time (`claimPrompt` in `Workspace.tsx`), and no prompt o
   2.5 s while open. Declining, leaving, or the peer not being available (never paired, or hasn't opened
   their own link yet) are all handled and logged (`peer_checkin_ended`), then the dialog moves on to the
   completion checkpoint's stopping choices. With the default `checkpointTrigger: "time_budget"` this
-  room isn't opened by anything until the 90:00 peer invitation (`peerCheckinMinutes`) is built.
+  room isn't opened by the AI-request checkpoint at all — see peer check-in v2 below, which is what
+  actually invites participants under the default trigger.
+
+### Peer check-in v2 (treatment prompt 3)
+
+- **Peer check-in v2** (`peerChat`): invited once, automatically, at `peerCheckinMinutes` (default 90:00)
+  on the session clock (`@/lib/timing`, `@/lib/sessionClock`) — including while paused, unlike break
+  prompts, per the treatment prompt doc ("the invite goes to everyone still working"). Uses the same
+  `claimPrompt("peer-checkin-v2")` lock as the other treatment prompts, so it never stacks with the
+  budget checkpoint or a break prompt; after the room closes, releasing the lock is enough for the
+  budget checkpoint to open next if it's due (`src/app/task/[taskId]/PeerCheckinV2.tsx`).
+- A private room with the manually paired peer (same pairing as the v1 room — `/start?...&peer=`),
+  but **session-scoped, not task-scoped**: the invitation isn't tied to whichever task happens to be
+  open, so messages use `taskId: null` and are visible regardless of which task page either side is on.
+  Reuses `getPeerSessionId`/`isPeerAvailable` from `@/lib/peer`; its own helpers are in
+  `@/lib/peerVoice`.
+- **Voice-first, with a text fallback**: "Record a voice message" uses `MediaRecorder` (capped at 60s
+  client-side, 90s server-side), sent as a `data:` URI (base64) and played back with a native
+  `<audio controls>` element — no file storage, same "everything in the Event log" approach as the
+  rest of the app. If the mic is unavailable or permission is denied, a text box works instead; a
+  message is a `peer_voice_message` event with `kind: "voice"` or `"text"`.
+- "Shown" and "ended" are each persisted once per session (`peer_checkin_v2_shown` /
+  `peer_checkin_v2_ended`), so a refresh mid-conversation reopens the room, but it's never invited a
+  second time. Esc doesn't dismiss it. Declining, leaving, and an unavailable peer are all handled and
+  logged, same outcomes as the v1 room.
 
 ## Effort metrics
 
@@ -274,7 +300,7 @@ See `prisma/schema.prisma`.
 | `visibility_hidden` / `visibility_visible` | browser | `clientTs` |
 | `task_close` | browser (page unload) | `clientTs` |
 | `ai_user_message` | server (`/api/ai`, before calling the model) | `text`, `model` |
-| `ai_assistant_message` | server (`/api/ai`, on a successful reply) | `text`, `model` |
+| `ai_assistant_message` | server (`/api/ai`, on a successful reply) | `text`, `model`, `usage` (OpenAI's token-usage object, for per-participant cost — or `null`) |
 | `ai_error` | server (`/api/ai`, on a failed call) | `message`, `model` |
 | `task_pause` | server (`/api/pause`, on a state change) | `clientTs`, `reason` (`manual`/`break`), `breakIndex` (breaks only) |
 | `task_resume` | server (`/api/pause`, on a state change) | `clientTs`, `pausedMs`, `pausedOnTaskId` |
@@ -292,8 +318,11 @@ See `prisma/schema.prisma`.
 | `peer_paired` | server (`/start?...&peer=`) | `peerSessionId` |
 | `peer_message` | server (`/api/peer`) | `text`, `peerSessionId` (the recipient) |
 | `peer_checkin_ended` | server (`/api/peer`) | `index`, `outcome` (`returned`/`declined`/`left`/`peer_unavailable`) |
+| `peer_checkin_v2_shown` | server (`/api/peer-checkin-v2`, once per session) | — |
+| `peer_voice_message` | server (`/api/peer-checkin-v2`) | `kind` (`voice`/`text`), `audioBase64`+`mimeType`+`durationMs` or `text`, `peerSessionId` (the recipient) |
+| `peer_checkin_v2_ended` | server (`/api/peer-checkin-v2`, once per session) | `outcome` (`returned`/`declined`/`left`/`peer_unavailable`) |
 | `interview_user_message` | server (`/api/interview`, before calling the model) | `text`, `model` |
-| `interview_assistant_message` | server (`/interview` page load for the opening line; `/api/interview` for replies) | `text`, `model` |
+| `interview_assistant_message` | server (`/interview` page load for the opening line; `/api/interview` for replies) | `text`, `model`; `usage` is only present on replies, not the static opening line |
 | `interview_error` | server (`/api/interview`, on a failed call) | `message`, `model` |
 | `interview_finished` | server (`/api/interview`, `{ finish: true }`) | — |
 
@@ -302,7 +331,8 @@ See `prisma/schema.prisma`.
 Two code paths talk to OpenAI, both through `callChatModel` in `@/lib/ai`:
 
 - `POST /api/ai` with `{ taskId, message }` — the task chat pane (`taskPlan`/`ai` versions only).
-  Builds a system prompt from the task instructions and the participant's current saved draft
+  Builds a system prompt from the Frame Marketing Brief (`BRIEF` from `@/lib/config`, flattened to
+  plain lines by `formatBrief`), the task instructions, and the participant's current saved draft
   (`buildSystemPrompt` in `@/lib/ai`), plus prior turns rebuilt from the event log — the conversation
   needs no separate table, so it survives a refresh or switching tasks and back. For the `sustainable`
   version, the prompt also tells the model not to routinely invite further revisions, per the brief's
@@ -314,10 +344,20 @@ Two code paths talk to OpenAI, both through `callChatModel` in `@/lib/ai`:
   versions that don't have them. The opening line is static (not model-generated) so the interview
   starts immediately. Logs `interview_user_message`/`interview_assistant_message`/`interview_error`,
   the same pattern as the task chat pane.
+  **`config/interview.json` currently only has question 1 of the PI's guide ("What was your experience
+  with the tasks?") — the other four are pending.**
 
 Both AI versions (and the interview, in every version) use the same `OPENAI_MODEL`. Both return `502`
 with a friendly message if the call fails (including a missing `OPENAI_API_KEY`); the chat UI surfaces
 that inline in either case.
+
+`callChatModel` also:
+- Logs OpenAI's `usage` object (prompt/completion token counts) on every successful reply, for
+  per-participant cost tracking — see `ai_assistant_message`/`interview_assistant_message` above.
+- Sends `temperature: 0.4` by default, but some reasoning-tier models reject a custom temperature
+  (a `400` with `error.param: "temperature"`). On that specific error it retries once without the
+  parameter rather than failing the request — untested against a real `gpt-5.6-terra` call, since no
+  `OPENAI_API_KEY` has been available to verify it against the live API yet.
 
 ## Logging from server code
 

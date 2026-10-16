@@ -26,6 +26,8 @@ import { getBudgetCheckpointState } from "@/lib/budgetCheckpoint";
 import BudgetCheckpoint from "./BudgetCheckpoint";
 import { getHandledBreakIndices } from "@/lib/breaks";
 import BreakPrompt from "./BreakPrompt";
+import { getPeerCheckinV2Ended, getPeerCheckinV2Shown } from "@/lib/peerVoice";
+import PeerCheckinV2 from "./PeerCheckinV2";
 
 export const dynamic = "force-dynamic";
 
@@ -91,6 +93,9 @@ export default async function TaskPage({ params }: { params: Promise<{ taskId: s
         getPeerCheckinDoneIndices(session.sessionId, taskId),
       ])
     : [[], []];
+  const [peerV2Shown, peerV2Ended] = features.peerChat
+    ? await Promise.all([getPeerCheckinV2Shown(session.sessionId), getPeerCheckinV2Ended(session.sessionId)])
+    : [false, false];
 
   return (
     <WorkspaceProvider
@@ -137,6 +142,7 @@ export default async function TaskPage({ params }: { params: Promise<{ taskId: s
             AI-request-count checkpoint with its peer check-in stage. */}
         {useBudgetCheckpoint && <BudgetCheckpoint initialShown={budgetCheckpoint.shown} />}
         {features.breakPrompts && <BreakPrompt initialHandled={handledBreaks} />}
+        {features.peerChat && <PeerCheckinV2 initialShown={peerV2Shown} initialEnded={peerV2Ended} />}
         {features.checkpoints && !useBudgetCheckpoint && (
           <Checkpoint
             thresholds={CHECKPOINT_THRESHOLDS}

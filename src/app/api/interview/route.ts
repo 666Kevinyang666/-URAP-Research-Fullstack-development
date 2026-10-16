@@ -32,12 +32,16 @@ export const POST = withSession(
     const systemPrompt = buildInterviewSystemPrompt(s.version);
 
     try {
-      const reply = await callChatModel([
+      const { text: reply, usage } = await callChatModel([
         { role: "system", content: systemPrompt },
         ...history,
         { role: "user", content: message },
       ]);
-      await logEvent(s.sessionId, s.version, null, "interview_assistant_message", { text: reply, model: AI_MODEL });
+      await logEvent(s.sessionId, s.version, null, "interview_assistant_message", {
+        text: reply,
+        model: AI_MODEL,
+        usage,
+      });
       return NextResponse.json({ reply, model: AI_MODEL });
     } catch (e) {
       await logEvent(s.sessionId, s.version, null, "interview_error", {
