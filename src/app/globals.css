@@ -323,3 +323,31 @@ textarea.editor {
     break-inside: avoid-page;
   }
 }
+
+/* Consent, instructions, welcome and exit pages. */
+.page {
+  max-width: 640px;
+}
+
+.placeholder-note {
+  border: 1px dashed #b00020;
+  color: #b00020;
+  padding: 6px 8px;
+}
+
+.check-form fieldset {
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  margin: 0 0 12px;
+  padding: 8px 12px;
+}
+
+.check-option {
+  display: block;
+  margin: 4px 0;
+}
+
+.check-correction {
+  color: #b00020;
+  margin: 6px 0 0;
+}

@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { getCurrentSession } from "@/lib/session";
 import { getTask, STUDY, TASKS } from "@/lib/config";
 import { prisma } from "@/lib/db";
@@ -20,6 +20,8 @@ import { CHECKPOINT_THRESHOLDS, PEER_CHECKPOINT_INDEX, getResolvedCheckpointIndi
 import { getPeerCheckinDoneIndices } from "@/lib/peer";
 import Checkpoint from "./Checkpoint";
 import TaskContent from "./TaskContent";
+import { getJourneyStage, stagePath } from "@/lib/journey";
+import NoSession from "@/components/NoSession";
 
 export const dynamic = "force-dynamic";
 
@@ -34,16 +36,13 @@ export default async function TaskPage({ params }: { params: Promise<{ taskId: s
   if (!task) notFound();
 
   const session = await getCurrentSession();
-  if (!session) {
-    return (
-      <main>
-        <h1>Session not found</h1>
-        <p>Please open this study using the link you were given.</p>
-      </main>
-    );
-  }
+  if (!session) return <NoSession />;
 
-  if (session.endedAt) {
+  // Consent, instructions and Start work come first; a declined session goes to /exit.
+  const stage = await getJourneyStage(session);
+  if (stage !== "work" && stage !== "ended") redirect(stagePath(stage));
+
+  if (stage === "ended") {
     return (
       <main>
         <h1>Thank you</h1>
