@@ -3,5 +3,10 @@
   "autosaveIntervalMs": 3000,
   "snapshotIntervalMs": 300000,
   "activeTimeFlushIntervalMs": 15000,
-  "checkpointAiRequestThresholds": [3, 6]
+  "checkpointTrigger": "time_budget",
+  "checkpointAiRequestThresholds": [3, 6],
+  "demoTimeScale": 1,
+  "breakPromptMinutes": [60, 120],
+  "breakLengthMinutes": 5,
+  "peerCheckinMinutes": 90
 }

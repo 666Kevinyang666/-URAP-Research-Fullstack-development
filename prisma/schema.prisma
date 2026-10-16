@@ -16,6 +16,9 @@ model Session {
   version   String // "none" | "standard" | "sustainable"
   createdAt DateTime  @default(now())
   endedAt   DateTime?
+  // Set once by "Start work" on the welcome page; never reset on resume. The session clock
+  // (breaks, peer check-in) runs from here, including paused time. See src/lib/sessionClock.ts.
+  workStartedAt DateTime?
 
   drafts      Draft[]
   snapshots   Snapshot[]
