@@ -5,6 +5,8 @@ import type { DraftStatus } from "@/lib/constants";
 import { beacon, logClientEvent, post } from "@/lib/clientApi";
 import { useWorkspace } from "./Workspace";
 import { PlanGate } from "./Plan";
+import CompletionQuestions from "./CompletionQuestions";
+import type { CompletionAnswers } from "@/lib/completion";
 
 type SaveState = "saved" | "saving" | "not_saved";
 
@@ -51,6 +53,8 @@ export default function TaskEditor(props: Props) {
   const [saveState, setSaveState] = useState<SaveState>("saved");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const completionDialogRef = useRef<HTMLDialogElement>(null);
+  const [completionOpen, setCompletionOpen] = useState(false);
 
   const contentRef = useRef(props.initialContent);
   const lastSavedRef = useRef(props.initialContent); // content the server has confirmed
@@ -196,11 +200,24 @@ export default function TaskEditor(props: Props) {
     }
   }
 
-  const complete = () => {
+  // "Mark task complete" first asks the completion questions (skippable), then completes.
+  const openCompletion = () => {
+    setErrorMsg(null);
+    setCompletionOpen(true);
+    completionDialogRef.current?.showModal();
+  };
+
+  const closeCompletion = () => {
+    setCompletionOpen(false);
+    completionDialogRef.current?.close();
+  };
+
+  const complete = async (answers: CompletionAnswers) => {
     const toSave = contentRef.current;
-    runAction("/api/task/complete", { taskId, content: toSave }, (data) => {
+    await runAction("/api/task/complete", { taskId, content: toSave, answers }, (data) => {
       markSaved(toSave);
       if (data.status) setStatus(data.status);
+      closeCompletion();
     });
   };
 
@@ -249,14 +266,26 @@ export default function TaskEditor(props: Props) {
             Reopen task
           </button>
         ) : (
-          <button onClick={complete} disabled={busy || needsPlan}>
-            Mark complete
+          <button onClick={openCompletion} disabled={busy || needsPlan}>
+            Mark task complete
           </button>
         )}
         <button type="button" onClick={pause} disabled={busy || paused}>
           Pause
         </button>
       </div>
+
+      <dialog ref={completionDialogRef} className="completion-dialog" onClose={() => setCompletionOpen(false)}>
+        {completionOpen && (
+          <CompletionQuestions
+            source="editor"
+            busy={busy}
+            error={errorMsg}
+            onSubmit={complete}
+            onCancel={closeCompletion}
+          />
+        )}
+      </dialog>
     </div>
   );
 }
