@@ -1,0 +1,76 @@
+{
+  "title": "Frame Marketing Brief",
+  "pages": [
+    {
+      "intro": [
+        "Keep this reference handy as you work. Company details are below; customer evidence is on the next page. All brands, films, and records are fictional."
+      ],
+      "sections": [
+        {
+          "heading": "The company",
+          "paragraphs": [
+            "Frame is a cinema chain trying to attract people who like films but rarely book. It offers comfortable reserved seats, good projection and sound, and snacks sold separately. It has neither the lowest prices nor luxury facilities. Its voice is warm and confident; humour is welcome. There is no fixed slogan.",
+            "Choose your audience and approach. Label assumptions about missing details and distinguish proposed changes from current capabilities."
+          ]
+        },
+        {
+          "heading": "Films you can promote",
+          "items": [
+            { "label": "The Spare Key", "text": "A comedy about estranged siblings trying to sell their childhood home. Weekday evenings and weekends." },
+            { "label": "Dead Air", "text": "A tense thriller about a radio producer who hears about a crime before it happens. Evenings and weekends." },
+            { "label": "Small Hours", "text": "A drama about an amateur choir. Weekday afternoons and evenings; a director discussion follows one selected evening screening." },
+            { "label": "The Dinner Bet", "text": "A returning comedy about rival neighbours entering a cooking contest. Its weekend “fan celebration” has a host introduction, followed by a normal screening without audience participation." }
+          ]
+        },
+        {
+          "heading": "What you can work with",
+          "items": [
+            { "text": "Use social media, subscriber emails, website copy, posters, and proposed local partnerships. A small team can produce simple photographs and videos. The campaign must work at regular ticket prices; new apps and major cinema changes are beyond its resources." },
+            { "text": "The website lists films and showtimes and supports seat selection and payment. A small website pilot is feasible using existing staff. Frame maintains current listings and can review page visits and completed bookings. You decide how a proposed film finder would work and what support it needs." },
+            { "text": "For the TV advertisement, ordinary actors and everyday locations are available. Celebrities, elaborate effects, and footage from famous films are not." }
+          ]
+        },
+        {
+          "heading": "Other brands in the conversation",
+          "items": [
+            { "text": "Velvet Cinema shows plush seats and drinks: “Make tonight an occasion.” TownScreen uses a price-led poster: “Big screen. Small spend.”" },
+            { "text": "SofaStream shows someone settling onto a sofa: “Your sofa. Your snacks. Nobody talking behind you. Why go out?”" }
+          ]
+        }
+      ]
+    },
+    {
+      "heading": "Customer notes and past marketing",
+      "intro": [
+        "Management suspects ticket prices are the main barrier. The notes below are excerpts and summaries, not a complete picture. Interviewees volunteered through Frame’s mailing list; their recent decisions are self-reported."
+      ],
+      "sections": [
+        {
+          "heading": "Customer accounts",
+          "items": [
+            { "label": "Maya", "text": "Occasional visitor: “It becomes another thing to organise.” Friends agreed on a film but not an evening. They chose dinner, where people could arrive separately." },
+            { "label": "Ben", "text": "Former regular: “When I complain about the price, I actually mean the price.” Returned for a weekday discount; his shifts do not always allow weekday visits." },
+            { "label": "Leah", "text": "Occasional visitor: “The ticket isn’t the whole decision.” Pays for childcare and transport. Could not find Frame’s finishing time; booked a costlier theatre performance with an explicit schedule." },
+            { "label": "Owen", "text": "Regular: “I’m not looking for an activity around it.” Avoided a “fan celebration”, expecting participation. It was actually a normal screening with an introduction." },
+            { "label": "Priya", "text": "Infrequent visitor: “I usually tell friends the cinema is too expensive.” Went alone at full price for a director discussion, but would not attend just any guest event." },
+            { "label": "Alex", "text": "Rarely attends: “I’d like to know what to expect.” Abandoned a solo booking, then attended with a colleague who also handled the tickets." }
+          ]
+        },
+        {
+          "heading": "Other evidence",
+          "items": [
+            { "label": "Website records", "text": "Maya repeatedly checked showtimes; Leah moved between booking and the FAQ before leaving. Another visitor left at the price page, then booked a different film and day through a promotional email. The reason is unknown." },
+            { "label": "Staff and customer feedback", "text": "Staff saw both unfamiliar visitors and regulars at discounted screenings; some regulars had simply changed their usual day. One complaint praised the film but said talking and phone use made watching at home preferable." }
+          ]
+        },
+        {
+          "heading": "What Frame has tried",
+          "paragraphs": [
+            "“Make a night of it” posts showed groups enjoying films and snacks. People tagged friends, but the team did not track whether this led to bookings. Past weekday discounts have ended.",
+            "One location used practical information about how a visit would work; another used an enthusiastic evening-out message. The first sold more tickets and received fewer timing questions, but it also had different showtimes, transport, mailing lists, and an earlier email. No comparable follow-up was run."
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,50 +1,79 @@
 [
   {
-    "id": "creative",
-    "title": "[Placeholder] Task 1: Creative writing",
+    "id": "strategy",
+    "title": "Task 1: Plan a marketing campaign",
     "required": true,
-    "instructions": [
-      "PLACEHOLDER TEXT. Replace in config/tasks.json before the study runs.",
-      "Creative task: write a short piece (about 200-300 words) in response to the prompt below.",
-      "Prompt: [placeholder creative prompt]"
-    ]
+    "intro": [
+      "Frame wants to attract people who like the idea of going to the cinema but rarely make it happen. Develop a campaign that turns that interest into bookings.",
+      "Choose a target audience and a compelling reason for them to act. You can use social media, email, Frame’s website, and local partnerships. The campaign must work at regular ticket prices."
+    ],
+    "submit": [
+      "Your campaign concept: its name, target audience, central message, and the customer insight behind it.",
+      "The campaign in action: explain how someone would encounter it, become interested, and move toward booking. Show how the activities connect.",
+      "Example copy: write the launch announcement and a follow-up message for someone who showed interest but did not book.",
+      "Your recommendation: explain the most important trade-off you made, where the campaign could lose people, and how you would assess whether it worked."
+    ],
+    "materials": "Customer profiles, available film and event offers, channel capabilities, and examples of previous campaigns."
   },
   {
     "id": "evidence-synthesis",
-    "title": "[Placeholder] Task 2: Evidence synthesis",
+    "title": "Task 2: Analyze why customers do not book",
     "required": true,
-    "instructions": [
-      "PLACEHOLDER TEXT. Replace in config/tasks.json before the study runs.",
-      "Evidence synthesis task: read the sources below and write a summary (about 250-350 words) of what they show together.",
-      "Sources: [placeholder source A], [placeholder source B], [placeholder source C]"
-    ]
+    "intro": [
+      "Frame’s management believes ticket prices are the main obstacle. Its research suggests a more complicated picture: customers’ explanations sometimes conflict with their behaviour, and frequent visitors want different things from occasional visitors.",
+      "Read the material and recommend which customer problem Frame should address first. You can challenge management’s explanation, support it, or show where it applies."
+    ],
+    "submit": [
+      "Your diagnosis: explain the main obstacle and whom it affects, using specific evidence.",
+      "The strongest alternative: show how someone could interpret the evidence differently and explain why you favour your interpretation.",
+      "Your recommendation: propose a practical change and describe a test that could distinguish your explanation from the alternative. State what result would make you reconsider.",
+      "No calculations are required."
+    ],
+    "materials": "Customer interviews, accounts of recent booking decisions, staff observations, and customer complaints."
   },
   {
-    "id": "strategy",
-    "title": "[Placeholder] Task 3: Open-ended strategy",
+    "id": "creative",
+    "title": "Task 3: Write a TV advertisement",
     "required": true,
-    "instructions": [
-      "PLACEHOLDER TEXT. Replace in config/tasks.json before the study runs.",
-      "Strategy task: propose and justify an approach (about 250-350 words) to the scenario below.",
-      "Scenario: [placeholder strategy scenario]"
-    ]
+    "intro": [
+      "Frame is commissioning a sixty-second television advertisement. The marketing director says:",
+      "Choose an audience tension from the materials and turn it into a story. The advertisement can be funny, moving, strange, or understated. It must be achievable with ordinary locations and actors, without celebrities or footage from famous films."
+    ],
+    "quote": "Give people a story they want to watch—and a reason to remember Frame. Please avoid another montage of smiling people eating popcorn.",
+    "submit": [
+      "The complete script: describe what viewers see and hear, including dialogue, sound, on-screen text, and the ending.",
+      "A short social version: adapt the idea into a much shorter advertisement that still makes sense on its own.",
+      "Your creative choice: briefly pitch a different idea you considered and explain why you selected the one you developed."
+    ],
+    "materials": "Audience observations, Frame’s brand brief, production constraints, and competing advertisements."
   },
   {
     "id": "optional-1",
-    "title": "[Placeholder] Optional task A",
+    "title": "Task 4: Respond to a competitor’s advertisement",
     "required": false,
-    "instructions": [
-      "PLACEHOLDER TEXT. Replace in config/tasks.json before the study runs.",
-      "Optional task: [placeholder instructions]"
+    "intro": [
+      "A fictional streaming service has launched this advertisement:",
+      "Frame wants to respond. The opportunity is to create something entertaining that gives people a reason to choose cinema. A defensive reply could strengthen the competitor’s argument."
+    ],
+    "quote": "Your sofa. Your snacks. Nobody talking behind you. Why go out?",
+    "submit": [
+      "Frame’s response, written as a short advertisement, public exchange, or connected series of posts.",
+      "Where it would appear and how the format helps the idea."
     ]
   },
   {
     "id": "optional-2",
-    "title": "[Placeholder] Optional task B",
+    "title": "Task 5: Design and launch a film finder",
     "required": false,
-    "instructions": [
-      "PLACEHOLDER TEXT. Replace in config/tasks.json before the study runs.",
-      "Optional task: [placeholder instructions]"
-    ]
+    "intro": [
+      "Frame is considering a website feature for people who browse but cannot decide what to watch. Visitors would answer a few questions, receive a film suggestion, and have a way to act on it.",
+      "Develop the idea into something Frame could realistically try. Think through the visitor’s experience and what the team would need to put in place. Use the films and resources in the Frame Marketing Brief."
+    ],
+    "submit": [
+      "The visitor journey: Show how someone discovers the feature, moves through it, receives a recommendation, and proceeds toward booking. Include what happens if the suggestion does not appeal or the available screening does not suit them.",
+      "The experience on screen: Write the key questions, recommendation messages, and next-step options. Walk through an example so the team can understand how the choices connect.",
+      "A workable first version: Explain what needs to be prepared, which colleagues would need to help, and how the feature would stay useful as films and showtimes change. Decide what is essential for the first version and what can wait."
+    ],
+    "closing": "You do not need to write code or explain the underlying technology."
   }
 ]

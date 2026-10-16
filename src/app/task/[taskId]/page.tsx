@@ -19,6 +19,7 @@ import EffortPanel from "./EffortPanel";
 import { CHECKPOINT_THRESHOLDS, PEER_CHECKPOINT_INDEX, getResolvedCheckpointIndices } from "@/lib/checkpoints";
 import { getPeerCheckinDoneIndices } from "@/lib/peer";
 import Checkpoint from "./Checkpoint";
+import TaskContent from "./TaskContent";
 
 export const dynamic = "force-dynamic";
 
@@ -99,9 +100,7 @@ export default async function TaskPage({ params }: { params: Promise<{ taskId: s
           <PauseBanner />
           <h1>{task.title}</h1>
           <p className="task-meta">{task.required ? "Required task" : "Optional task"}</p>
-          {task.instructions.map((line, i) => (
-            <p key={i}>{line}</p>
-          ))}
+          <TaskContent task={task} />
           <TaskEditor
             sessionId={session.sessionId}
             taskId={taskId}
