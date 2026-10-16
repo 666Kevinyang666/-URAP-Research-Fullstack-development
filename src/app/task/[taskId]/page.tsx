@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { getCurrentSession } from "@/lib/session";
-import { getTask, STUDY, TASKS } from "@/lib/config";
+import { CHECKPOINT_TRIGGER, getTask, STUDY, TASKS } from "@/lib/config";
 import { prisma } from "@/lib/db";
 import { ensureDraft } from "@/lib/drafts";
 import { logEvent } from "@/lib/logEvent";
@@ -10,7 +10,7 @@ import { getFeatures } from "@/lib/features";
 import ChatPane from "@/components/ChatPane";
 import TaskEditor from "./TaskEditor";
 import TaskNav, { type NavTask } from "./TaskNav";
-import { PauseBanner, WorkspaceProvider } from "./Workspace";
+import { FlagBanner, PauseBanner, WorkspaceProvider } from "./Workspace";
 import { getPauseState } from "@/lib/pause";
 import { getEffort } from "@/lib/effort";
 import { getPlan } from "@/lib/plans";
@@ -22,6 +22,8 @@ import Checkpoint from "./Checkpoint";
 import TaskContent from "./TaskContent";
 import { getJourneyStage, stagePath } from "@/lib/journey";
 import NoSession from "@/components/NoSession";
+import { getBudgetCheckpointState } from "@/lib/budgetCheckpoint";
+import BudgetCheckpoint from "./BudgetCheckpoint";
 
 export const dynamic = "force-dynamic";
 
@@ -75,7 +77,12 @@ export default async function TaskPage({ params }: { params: Promise<{ taskId: s
     features.taskPlan ? getPlan(session.sessionId, taskId) : null,
   ]);
   const aiMessages = features.ai ? await getConversation(session.sessionId, taskId) : [];
-  const [resolvedCheckpointIndices, peerDoneIndices] = features.checkpoints
+  const useBudgetCheckpoint = features.checkpoints && CHECKPOINT_TRIGGER === "time_budget";
+  const budgetCheckpoint = useBudgetCheckpoint
+    ? await getBudgetCheckpointState(session.sessionId, taskId)
+    : { shown: false, flag: null };
+  const [resolvedCheckpointIndices, peerDoneIndices] =
+    features.checkpoints && !useBudgetCheckpoint
     ? await Promise.all([
         getResolvedCheckpointIndices(session.sessionId, taskId),
         getPeerCheckinDoneIndices(session.sessionId, taskId),
@@ -92,6 +99,14 @@ export default async function TaskPage({ params }: { params: Promise<{ taskId: s
       activeTimeFlushIntervalMs={STUDY.activeTimeFlushIntervalMs}
       planRequired={features.taskPlan}
       initialPlan={plan}
+      workStartedAt={session.workStartedAt?.toISOString() ?? null}
+      serverNowAtRender={Date.now()}
+      initialPauseInfo={
+        pauseState.paused
+          ? { since: pauseState.since.getTime(), reason: pauseState.reason, breakIndex: pauseState.breakIndex }
+          : null
+      }
+      initialFlag={budgetCheckpoint.flag}
     >
       <main className="workspace">
         <TaskNav tasks={navTasks} />
@@ -100,6 +115,7 @@ export default async function TaskPage({ params }: { params: Promise<{ taskId: s
           <h1>{task.title}</h1>
           <p className="task-meta">{task.required ? "Required task" : "Optional task"}</p>
           <TaskContent task={task} />
+          <FlagBanner />
           <TaskEditor
             sessionId={session.sessionId}
             taskId={taskId}
@@ -114,7 +130,10 @@ export default async function TaskPage({ params }: { params: Promise<{ taskId: s
           {features.effortDisplay && <EffortPanel initialAiRequestCount={effort.aiRequestCount} />}
           {features.ai && <ChatPane taskId={taskId} version={session.version} initialMessages={aiMessages} />}
         </aside>
-        {features.checkpoints && (
+        {/* checkpointTrigger (config/study.json) picks the time-budget checkpoint (default) or the
+            AI-request-count checkpoint with its peer check-in stage. */}
+        {useBudgetCheckpoint && <BudgetCheckpoint initialShown={budgetCheckpoint.shown} />}
+        {features.checkpoints && !useBudgetCheckpoint && (
           <Checkpoint
             thresholds={CHECKPOINT_THRESHOLDS}
             peerIndex={PEER_CHECKPOINT_INDEX}

@@ -58,3 +58,11 @@ export function getTask(taskId: string): Task | undefined {
 }
 
 export const REQUIRED_TASK_IDS = TASKS.filter((t) => t.required).map((t) => t.id);
+
+/**
+ * What opens the completion checkpoint (versions with features.checkpoints):
+ * "time_budget" (default) = once per task when active time reaches the plan's time budget
+ * (BudgetCheckpoint.tsx); "ai_requests" = at checkpointAiRequestThresholds (Checkpoint.tsx).
+ */
+export const CHECKPOINT_TRIGGER: "time_budget" | "ai_requests" =
+  study.checkpointTrigger === "ai_requests" ? "ai_requests" : "time_budget";

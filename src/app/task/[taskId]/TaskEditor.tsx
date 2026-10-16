@@ -48,8 +48,19 @@ export default function TaskEditor(props: Props) {
   const { sessionId, taskId, autosaveIntervalMs, snapshotIntervalMs } = props;
   const storageKey = backupKey(sessionId, taskId);
   const [content, setContent] = useState(props.initialContent);
-  const { status, setStatus, setRevisionCount, registerFlush, registerContentGetter, paused, pause, pauseError, needsPlan } =
-    useWorkspace();
+  const {
+    status,
+    setStatus,
+    setRevisionCount,
+    registerFlush,
+    registerContentGetter,
+    paused,
+    pause,
+    pauseError,
+    needsPlan,
+    claimPrompt,
+    releasePrompt,
+  } = useWorkspace();
   const [saveState, setSaveState] = useState<SaveState>("saved");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -202,12 +213,15 @@ export default function TaskEditor(props: Props) {
 
   // "Mark task complete" first asks the completion questions (skippable), then completes.
   const openCompletion = () => {
+    // Hold the prompt lock so a treatment prompt can't open on top of this dialog.
+    if (!claimPrompt("completion-questions")) return;
     setErrorMsg(null);
     setCompletionOpen(true);
     completionDialogRef.current?.showModal();
   };
 
   const closeCompletion = () => {
+    releasePrompt("completion-questions");
     setCompletionOpen(false);
     completionDialogRef.current?.close();
   };
@@ -270,12 +284,15 @@ export default function TaskEditor(props: Props) {
             Mark task complete
           </button>
         )}
-        <button type="button" onClick={pause} disabled={busy || paused}>
+        <button type="button" onClick={() => pause()} disabled={busy || paused}>
           Pause
         </button>
       </div>
 
-      <dialog ref={completionDialogRef} className="completion-dialog" onClose={() => setCompletionOpen(false)}>
+      <dialog ref={completionDialogRef} className="completion-dialog" onClose={() => {
+          releasePrompt("completion-questions");
+          setCompletionOpen(false);
+        }}>
         {completionOpen && (
           <CompletionQuestions
             source="editor"

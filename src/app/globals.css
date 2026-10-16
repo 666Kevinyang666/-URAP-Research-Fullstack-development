@@ -380,3 +380,42 @@ textarea.editor {
   display: inline-block;
   margin-right: 16px;
 }
+
+/* Treatment prompts (time-budget checkpoint, break prompts): centered modal pop-ups. */
+.prompt-dialog {
+  max-width: 480px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.prompt-dialog h2 {
+  font-size: 1.15em;
+  margin-top: 0;
+}
+
+/* Equal visual weight: identical buttons in equal-width columns. */
+.prompt-choices {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 12px 0 4px;
+}
+
+.prompt-choices button {
+  width: 100%;
+  padding: 8px;
+  font: inherit;
+}
+
+.flag-banner {
+  border: 1px solid #c9a227;
+  background: #fff8e1;
+  border-radius: 4px;
+  padding: 6px 10px;
+  margin: 8px 0;
+}
+
+.flag-banner p {
+  margin: 4px 0 0;
+  white-space: pre-wrap;
+}
