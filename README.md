@@ -185,8 +185,12 @@ one prompt is open at a time (`claimPrompt` in `Workspace.tsx`), and no prompt o
   plan's current time budget. Four equal buttons: **Mark task complete** (the completion questions,
   inside the same pop-up), **Continue working**, **Pause** (the usual pause screen), **Flag for later**
   (optional note; "Flagged for later" and the note then show above the draft). Shown state is persisted
-  (`checkpoint_shown`), so a refresh or a later budget edit never shows it again for that task. Esc
-  doesn't dismiss it. Decisions are `checkpoint_resolved` with `trigger: "time_budget"`.
+  (`checkpoint_shown`) per reopen "episode": a refresh or a later budget edit never re-shows it within
+  the same episode, but **reopening a completed task starts a fresh one** — resolves PR #3's open
+  question 4 ("should it ever fire on a completed task that was reopened?") in favor of yes, since a
+  reopened, already-over-budget task is exactly the post-viability persistence this study measures; see
+  `getBudgetCheckpointState` in `@/lib/budgetCheckpoint`. Esc doesn't dismiss it. Decisions are
+  `checkpoint_resolved` with `trigger: "time_budget"`.
 - **Break prompts** (`breakPrompts`): a centered pop-up ("Time for a 5-minute break") at each
   `breakPromptMinutes` time on the session clock (from Start work, paused time included). If the
   participant is already paused then, the break is skipped and not rescheduled. **Take a 5-minute
@@ -309,7 +313,7 @@ See `prisma/schema.prisma`.
 | `active_time_clamped` | server (`/api/active-time`) | `reportedMs`, `acceptedMs`, `reason` |
 | `end_work_prompt` | browser (End work dialog opened) | `incompleteRequired`, `clientTs` |
 | `end_work_cancel` | browser (dialog dismissed) | `incompleteRequired`, `clientTs` |
-| `checkpoint_shown` | server (`/api/budget-checkpoint`, once per task) | `trigger: "time_budget"`, `budgetMinutes`, `activeMs` |
+| `checkpoint_shown` | server (`/api/budget-checkpoint`, once per reopen episode) | `trigger: "time_budget"`, `budgetMinutes`, `activeMs` |
 | `checkpoint_resolved` | server (`/api/checkpoint` or `/api/budget-checkpoint`) | AI-request trigger: `index`, `action` (`finish`/`continue`/`pause`/`flag`), `note?`. Time-budget trigger: `trigger: "time_budget"`, `action`, `note?` (no `index`) |
 | `break_prompt_shown` | server (`/api/break-prompt`) | `breakIndex`, `sessionElapsedMs` |
 | `break_prompt_skipped` | server (`/api/break-prompt`) | `breakIndex`, `reason` (`paused`/`missed`), `sessionElapsedMs` |
