@@ -24,6 +24,8 @@ import { getJourneyStage, stagePath } from "@/lib/journey";
 import NoSession from "@/components/NoSession";
 import { getBudgetCheckpointState } from "@/lib/budgetCheckpoint";
 import BudgetCheckpoint from "./BudgetCheckpoint";
+import { getHandledBreakIndices } from "@/lib/breaks";
+import BreakPrompt from "./BreakPrompt";
 
 export const dynamic = "force-dynamic";
 
@@ -77,6 +79,7 @@ export default async function TaskPage({ params }: { params: Promise<{ taskId: s
     features.taskPlan ? getPlan(session.sessionId, taskId) : null,
   ]);
   const aiMessages = features.ai ? await getConversation(session.sessionId, taskId) : [];
+  const handledBreaks = features.breakPrompts ? await getHandledBreakIndices(session.sessionId) : [];
   const useBudgetCheckpoint = features.checkpoints && CHECKPOINT_TRIGGER === "time_budget";
   const budgetCheckpoint = useBudgetCheckpoint
     ? await getBudgetCheckpointState(session.sessionId, taskId)
@@ -133,6 +136,7 @@ export default async function TaskPage({ params }: { params: Promise<{ taskId: s
         {/* checkpointTrigger (config/study.json) picks the time-budget checkpoint (default) or the
             AI-request-count checkpoint with its peer check-in stage. */}
         {useBudgetCheckpoint && <BudgetCheckpoint initialShown={budgetCheckpoint.shown} />}
+        {features.breakPrompts && <BreakPrompt initialHandled={handledBreaks} />}
         {features.checkpoints && !useBudgetCheckpoint && (
           <Checkpoint
             thresholds={CHECKPOINT_THRESHOLDS}
