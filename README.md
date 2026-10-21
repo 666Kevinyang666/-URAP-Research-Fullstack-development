@@ -12,21 +12,77 @@ chosen per session by the `version` URL parameter.
 - Prisma 7 with SQLite locally (`better-sqlite3` driver adapter).
 - No styling libraries; plain CSS in `src/app/globals.css`.
 
-## Setup
+## Local setup
 
-Requires Node.js 20+.
+Requires Node.js 20+ and Git.
+
+**Mac / Linux** (Terminal):
 
 ```bash
-cp .env.example .env   # then set DATABASE_URL="file:./dev.db" (it defaults to this if empty)
+git clone https://github.com/666Kevinyang666/-URAP-Research-Fullstack-development.git urap-prototype
+cd urap-prototype
+cp .env.example .env   # DATABASE_URL defaults to file:./dev.db if left empty
 npm install            # also runs `prisma generate`
 npm run dev            # applies migrations, then starts http://localhost:3000
 ```
 
-Open a session at:
+**Windows** (Git Bash): the same commands:
 
+```bash
+git clone https://github.com/666Kevinyang666/-URAP-Research-Fullstack-development.git urap-prototype
+cd urap-prototype
+cp .env.example .env
+npm install
+npm run dev
 ```
-http://localhost:3000/start?sid=TEST123&version=standard
-```
+
+(In PowerShell, use `Copy-Item .env.example .env` instead of `cp`.) The server keeps running in that
+terminal; stop it with Ctrl+C.
+
+`.env` settings (the file is gitignored; never commit it):
+
+| Setting | Use |
+| --- | --- |
+| `OPENAI_API_KEY`, `OPENAI_MODEL` | The AI chat and interview. `OPENAI_MODEL=mock`, or an empty key, gives canned replies without calling OpenAI (logged as model `mock`). Otherwise the model defaults to `gpt-5.6-terra`. |
+| `DATABASE_URL` | SQLite file, default `file:./dev.db`. |
+| `DEMO_PASSWORD`, `ADMIN_PASSWORD` | Password protection, for `npm run demo`. Leave `DEMO_PASSWORD` empty for local dev (no password). |
+| `DEMO_TIME_SCALE` | Optional session-clock speed-up, overriding `demoTimeScale` in `config/study.json` (see below). |
+
+Open a session at `http://localhost:3000/start?sid=TEST123&version=standard`, or create links at
+`http://localhost:3000/admin`.
+
+## Running the demo
+
+`npm run demo` runs a password-protected copy of the app from your laptop and shares it through a free,
+private HTTPS link (a Cloudflare quick tunnel: no account, no cost).
+
+1. Once: add `DEMO_PASSWORD=...` and `ADMIN_PASSWORD=...` to `.env`. The demo refuses to start without
+   both. **Never put the passwords in the README, the repo, or a chat with the link** — send the
+   password separately.
+2. Stop `npm run dev` if it's running (the demo needs port 3000).
+3. Run `npm run demo`. It checks `.env`, builds the app, applies migrations to a separate demo database
+   (`demo.db`, gitignored; `dev.db` is untouched), starts the app with `DEMO_TIME_SCALE=0.05` unless you
+   set one, starts the tunnel (`npx cloudflared tunnel --url http://localhost:3000`; the first run
+   downloads cloudflared), and prints the `https://<random>.trycloudflare.com` link and its `/admin` link.
+4. Open the `/admin` link and log in with any username and `ADMIN_PASSWORD`. Click **Create demo set**
+   (one `none` link, one `standard` link, and two `sustainable` links paired with each other for the peer
+   check-in), or pick a version and an optional sid and click **Create link**. Copy each link with its
+   **Copy** button and send one link per person, plus `DEMO_PASSWORD`. A link opened a second time
+   resumes the same session.
+5. Press **Ctrl+C** to stop the app and the tunnel. The link stops working as soon as the command stops,
+   and every run gets a new link. Data stays in `demo.db` between runs; `npm run demo:reset` deletes it.
+
+With `DEMO_TIME_SCALE=0.05` the session clock runs 20× faster: break prompts at 3:00 and 6:00 after
+Start work, the peer check-in at 4:30, and a 15-second break. Task time budgets aren't scaled (they
+compare against active task time), so set a 1-minute budget in the plan form to see the budget
+checkpoint after a minute of work. Run `DEMO_TIME_SCALE=1 npm run demo` for real timings.
+
+**Password protection** (`src/proxy.ts`, Next 16's request-interception file, formerly `middleware.ts`;
+rules in `src/lib/basicAuth.ts`): when `DEMO_PASSWORD` is set, every route needs HTTP Basic Auth (any
+username). Participant routes accept `DEMO_PASSWORD` or `ADMIN_PASSWORD`; `/admin` accepts only
+`ADMIN_PASSWORD`. Browsers resend the password on every request, so autosave beacons, peer polling,
+voice uploads and survey return links keep working. With `DEMO_PASSWORD` unset, auth is off (`/admin`
+still needs `ADMIN_PASSWORD` if that one is set).
 
 ## Participant flow
 
@@ -36,13 +92,20 @@ Every version follows the same path; only flagged features differ inside the tas
    current step (`getJourneyStage` in `src/lib/journey.ts`), so a resumed link never restarts the flow.
 2. `/consent`: Consent or Decline. Decline ends the session (`endedAt`) and shows `/exit`.
    **The consent text is a placeholder** and must be replaced with the approved form.
-3. `/instructions`: version-specific instructions, then a 3-question understanding check. A wrong
+3. Start-of-session survey: `/survey?survey=baseline` → Qualtrics (`baselineSurveyUrl`; until it exists,
+   `/survey-placeholder`) → `/survey/return?survey=baseline&sid=...` → instructions. See
+   [Qualtrics setup](#qualtrics-setup).
+4. `/instructions`: version-specific instructions, then a 3-question understanding check. A wrong
    answer shows the correct one and the participant retries until all are correct.
-4. `/welcome`: "Welcome to Frame", a link to the brief, and **Start work**, which sets
+5. `/welcome`: "Welcome to Frame", a link to the brief, and **Start work**, which sets
    `Session.workStartedAt` once. This starts the session clock (breaks, peer check-in).
-5. `/task/[taskId]`: the five tasks (task pages redirect to the current step until work has started).
+6. `/task/[taskId]`: the five tasks (task pages redirect to the current step until work has started).
    **Mark task complete** first asks the completion questions. **End work** closes editing.
-6. `/survey` → Qualtrics (or `/survey-placeholder`) → `/interview` → `/complete`.
+7. End-of-session survey: `/survey?survey=end` → Qualtrics (`endSurveyUrl`) →
+   `/survey/return?survey=end&sid=...` → `/interview` (five questions, each with one AI follow-up) →
+   `/complete`.
+
+A resumed `/start` link, or any page opened out of order, goes to the participant's current step.
 
 Useful commands:
 
@@ -52,13 +115,13 @@ Useful commands:
 | `npx prisma migrate dev --name <name>` | Create a migration after editing `prisma/schema.prisma` |
 | `npm run typecheck` | TypeScript check |
 
-Never commit `.env` or API keys. This repo is public.
+Never commit `.env`, `demo.db`, passwords, API keys, `.inputs/`, or real participant text. This repo is public.
 
 ## Versions and feature flags
 
 `src/lib/features.ts` maps each version to the features it gets. Check flags (`getFeatures(version)`)
 instead of comparing version strings. Layout and editor size are identical in every version; the side
-column is always rendered, and stays empty when a version has no side features.
+column is always rendered; in `none` it only says "AI assistance is not available in this session."
 
 | Flag | none | standard | sustainable | What it controls |
 | --- | --- | --- | --- | --- |
@@ -68,6 +131,46 @@ column is always rendered, and stays empty when a version has no side features.
 | `checkpoints` | – | – | ✓ | Completion checkpoint: time-budget pop-up (`POST /api/budget-checkpoint`) or AI-request dialog (`POST /api/checkpoint`), per `checkpointTrigger` |
 | `peerChat` | – | – | ✓ | Peer check-in: v2 voice room at `peerCheckinMinutes` on the session clock (`POST`/`GET /api/peer-checkin-v2`), plus the legacy text room inside the AI-request checkpoint dialog (`POST`/`GET /api/peer`) |
 | `breakPrompts` | – | – | ✓ | Break prompts at `breakPromptMinutes` on the session clock, `POST /api/break-prompt` |
+
+## Qualtrics setup
+
+Both surveys leave the app with the participant's `sid` and come back to it.
+
+1. **Survey URLs**: put each survey's anonymous link in `config/study.json`: `baselineSurveyUrl` (after
+   consent, before the instructions) and `endSurveyUrl` (after End work, before the interview). The app
+   adds `?sid=<sid>&return_url=<this app's /survey/return link>` to it.
+2. **Embedded data**: in each survey's Survey Flow, add an **Embedded Data** element at the top with a
+   field named exactly `sid` (leave the value empty, so Qualtrics reads it from the URL). Add a second
+   field `return_url` the same way if you use option B below. `sid` then appears as a column in the
+   Qualtrics export, matching the `sid` in this app's export.
+3. **End-of-survey redirect**: Survey options → End of survey → *Redirect to a URL*:
+   - Option A, a fixed host (a permanent deployment):
+     - baseline survey: `https://<app host>/survey/return?survey=baseline&sid=${e://Field/sid}`
+     - end survey: `https://<app host>/survey/return?survey=end&sid=${e://Field/sid}`
+   - Option B, any host (works with the demo tunnel, whose link changes every run): `${e://Field/return_url}`
+     in both surveys. The app sends the right link for each survey.
+
+`/survey/return` logs `survey_returned`, restores the participant's session cookie (in case the survey
+ran in another browser tab or profile) and continues to the next step. A return link for a step the
+participant isn't on doesn't skip anything ahead.
+
+## Changing study content
+
+All study content is in `config/`; edit the JSON and restart (`npm run dev`, or re-run `npm run demo`).
+
+| What | File |
+| --- | --- |
+| Tasks (text, order, required/optional) | `config/tasks.json` |
+| Frame Marketing Brief | `config/brief.json` |
+| "Welcome to Frame" page | `config/welcome.json` |
+| Instructions and understanding check (per version) | `config/instructions.json` |
+| Interview questions (and which versions get each) | `config/interview.json` |
+| Survey URLs, prompt timings (breaks, peer check-in), checkpoint trigger, autosave/snapshot intervals | `config/study.json` |
+| Which version gets which feature | `src/lib/features.ts` |
+| Consent text | `src/app/consent/page.tsx` (placeholder) |
+| Treatment prompt wording | `src/app/task/[taskId]/BudgetCheckpoint.tsx`, `BreakPrompt.tsx`, `PeerCheckinV2.tsx` |
+
+Details of each file are below.
 
 ## Configuration
 
@@ -88,9 +191,9 @@ column is always rendered, and stays empty when a version has no side features.
   currently 156 / 155 / 154 words for none / standard / sustainable), and `check.questions`, each with
   `options` and the correct option index per version in `answer`. The answer key never reaches the
   browser.
-- `config/study.json`: `qualtricsUrl` (survey link — defaults to `/survey-placeholder`, a local stand-in
-  page, so "Continue to survey" doesn't error before a real Qualtrics link exists; replace it before
-  the study runs), `autosaveIntervalMs` (3 s), `snapshotIntervalMs` (5 min),
+- `config/study.json`: `baselineSurveyUrl` and `endSurveyUrl` (the two Qualtrics links; both default to
+  `/survey-placeholder`, a local stand-in page that shows the sid and has a **Return to study** button.
+  Replace them before the study runs; see [Qualtrics setup](#qualtrics-setup)), `autosaveIntervalMs` (3 s), `snapshotIntervalMs` (5 min),
   `activeTimeFlushIntervalMs` (15 s: how often the browser sends active time), and
   `checkpointTrigger` (`"time_budget"` (default) | `"ai_requests"`) — what opens the completion checkpoint,
   `checkpointAiRequestThresholds` (default `[3, 6]`) — AI-request counts at which the checkpoint opens when
@@ -100,13 +203,16 @@ column is always rendered, and stays empty when a version has no side features.
   invitation), and `demoTimeScale` (`1`) — a multiplier on every session-clock timing for testing:
   `0.0167` turns 60 minutes into about 60 seconds, `0.02` puts the breaks at 72 s and 144 s with a 6 s
   break. It doesn't affect task time budgets, which are compared with active task time. Set it back to
-  `1` before the study runs.
+  `1` before the study runs. The `DEMO_TIME_SCALE` environment variable overrides it without editing the
+  file (`npm run demo` uses `0.05`); it's built into the app at `next build` / `next dev` start.
 - `OPENAI_API_KEY` / `OPENAI_MODEL` (in `.env`): credentials and model for the AI proxy and the AI
   interview. `OPENAI_MODEL` defaults to `gpt-5.6-terra` when unset — the same model is used for both
   AI versions' task chat, per the brief.
-- `config/interview.json`: `questions`, the fixed guide the end-of-session AI interview (`/interview`)
-  works through one at a time. AI/peer-specific questions are skipped per version — see
-  `buildInterviewSystemPrompt` in `@/lib/interview`.
+- `config/interview.json`: the end-of-session interview guide. `questions` is a list of
+  `{ id, text, versions?, draft? }`: `versions` limits a question to some versions (the AI question is
+  asked in `standard` and `sustainable`, the check-in question only in `sustainable`), and `draft: true`
+  marks questions 2–5, which are **drafts pending PI review** (question 1 is the PI's). `mockFollowUp` is
+  the follow-up used in mock mode. Question 1 must apply to every version, since the opening line asks it.
 
 ## Routes
 
@@ -119,11 +225,15 @@ column is always rendered, and stays empty when a version has no side features.
 | `GET /welcome` | "Welcome to Frame", brief link, Start work. |
 | `GET /brief?from=&taskId=` | Frame Marketing Brief, opened in a new tab from task pages and the welcome page. "Download PDF" prints the same content with print styles (Save as PDF). Logs `brief_open`. |
 | `GET /task/[taskId]` | Task page: task text, brief link, editor, AI chat pane (hidden for `none`). Redirects to the current step until work has started. |
-| `GET /survey` | "Continue to survey": redirects to `qualtricsUrl` with `?sid=` appended. |
-| `GET /survey-placeholder` | Local stand-in for the Qualtrics survey (the default `qualtricsUrl`). Replace before the study runs. |
-| `GET /interview` | End-of-session AI interview. Every version, including `none`. Not gated on `endedAt`. |
+| `GET /survey?survey=baseline\|end` | Redirects to `baselineSurveyUrl` or `endSurveyUrl` with `?sid=` and `return_url` added. The baseline survey is only reachable at that step. |
+| `GET /survey/return?survey=baseline\|end&sid=` | Where a survey sends the participant back: logs `survey_returned`, restores the `sid` cookie, redirects to the next step. |
+| `GET /survey-placeholder?survey=&sid=` | Local stand-in for both Qualtrics surveys (the default URLs): shows the sid and a **Return to study** button. Replace before the study runs. |
+| `GET /admin` | Researcher admin (`ADMIN_PASSWORD`): create links, sessions table, export. Not part of the participant flow. |
+| `POST /admin/links` | `{ version, sid? }` (sid auto-generated if blank) or `{ demoSet: true }` → `{ links: [{ sid, version, peer, url }] }`. |
+| `GET /admin/export?format=json\|csv&table=&sid=` | Data export; see [Data and export](#data-and-export). |
+| `GET /interview` | End-of-session AI interview. Every version, including `none`. Not gated on `endedAt`; `/start` sends a participant here once they're back from the end survey. |
 | `GET /complete` | Static completion page; "Finish interview" lands here. |
-| `POST /api/consent` | `{ choice: "consent" \| "decline" }` → `{ next }`. |
+| `POST /api/consent` | `{ choice: "consent" \| "decline" }` → `{ next }` (the baseline survey, or `/exit`). |
 | `POST /api/instructions/check` | `{ answers: { [questionId]: optionIndex } }` → `{ allCorrect, results, next }`. |
 | `POST /api/work/start` | Start work: sets `workStartedAt` if not set yet → `{ next }`. |
 | `POST /api/draft` | Autosave `{ taskId, content, trigger }`. |
@@ -289,7 +399,9 @@ See `prisma/schema.prisma`.
 | `session_start` | server | `userAgent` |
 | `session_resume` | server | `requestedVersion`, `versionMismatch`, `userAgent` |
 | `session_end` | server | `alreadyEnded`, `incompleteRequired` (task ids), per-task `status` / `activeMs` / `aiRequestCount` / `revisionCount` |
-| `survey_redirect` | server | `from` |
+| `survey_redirect` | server (`/survey`) | `survey` (`baseline`/`end`), `from` |
+| `survey_returned` | server (`/survey/return`, once per survey) | `survey` (`baseline`/`end`) |
+| `admin_link_created` | server (`/admin/links`; logged under the new sid, before the session exists) | `path` (the `/start` link), `peer` |
 | `consent_given` / `consent_declined` | server (`/api/consent`) | — |
 | `understanding_check_attempt` | server (`/api/instructions/check`, every attempt) | `attempt`, `allCorrect`, `answers: [{ id, choice, choiceText, correct }]` |
 | `understanding_check_passed` | server (all answers correct) | `attempts` |
@@ -304,7 +416,7 @@ See `prisma/schema.prisma`.
 | `visibility_hidden` / `visibility_visible` | browser | `clientTs` |
 | `task_close` | browser (page unload) | `clientTs` |
 | `ai_user_message` | server (`/api/ai`, before calling the model) | `text`, `model` |
-| `ai_assistant_message` | server (`/api/ai`, on a successful reply) | `text`, `model`, `usage` (OpenAI's token-usage object, for per-participant cost — or `null`) |
+| `ai_assistant_message` | server (`/api/ai`, on a successful reply) | `text`, `model` (`mock` in mock mode), `usage` (OpenAI's token-usage object, for per-participant cost — or `null`) |
 | `ai_error` | server (`/api/ai`, on a failed call) | `message`, `model` |
 | `task_pause` | server (`/api/pause`, on a state change) | `clientTs`, `reason` (`manual`/`break`), `breakIndex` (breaks only) |
 | `task_resume` | server (`/api/pause`, on a state change) | `clientTs`, `pausedMs`, `pausedOnTaskId` |
@@ -325,8 +437,8 @@ See `prisma/schema.prisma`.
 | `peer_checkin_v2_shown` | server (`/api/peer-checkin-v2`, once per session) | — |
 | `peer_voice_message` | server (`/api/peer-checkin-v2`) | `kind` (`voice`/`text`), `audioBase64`+`mimeType`+`durationMs` or `text`, `peerSessionId` (the recipient) |
 | `peer_checkin_v2_ended` | server (`/api/peer-checkin-v2`, once per session) | `outcome` (`returned`/`declined`/`left`/`peer_unavailable`) |
-| `interview_user_message` | server (`/api/interview`, before calling the model) | `text`, `model` |
-| `interview_assistant_message` | server (`/interview` page load for the opening line; `/api/interview` for replies) | `text`, `model`; `usage` is only present on replies, not the static opening line |
+| `interview_user_message` | server (`/api/interview`, before any model call) | `text`, `model` |
+| `interview_assistant_message` | server (`/interview` page load for the opening line; `/api/interview` for replies) | `text`, `model` (`guide` for scripted questions and the closing line, else the AI model or `mock`), `usage` (replies only; `null` for scripted or mock), `step: { kind: "question" \| "follow_up" \| "closing", index }` (replies only; `index` into this version's questions) |
 | `interview_error` | server (`/api/interview`, on a failed call) | `message`, `model` |
 | `interview_finished` | server (`/api/interview`, `{ finish: true }`) | — |
 
@@ -343,17 +455,21 @@ Two code paths talk to OpenAI, both through `callChatModel` in `@/lib/ai`:
   cognitive-closure manipulation. `standard` gets the same model with no such restriction.
   Logs `ai_user_message` before the call and `ai_assistant_message` (or `ai_error` on failure) after.
 - `POST /api/interview` with `{ message }` — the end-of-session interview (`/interview`), every
-  version including `none`. Walks the fixed `config/interview.json` guide one question at a time
-  (`buildInterviewSystemPrompt` in `@/lib/interview`), skipping AI/peer-specific questions for
-  versions that don't have them. The opening line is static (not model-generated) so the interview
-  starts immediately. Logs `interview_user_message`/`interview_assistant_message`/`interview_error`,
-  the same pattern as the task chat pane.
-  **`config/interview.json` currently only has question 1 of the PI's guide ("What was your experience
-  with the tasks?") — the other four are pending.**
+  version including `none`. The server walks the `config/interview.json` guide (`nextInterviewStep` in
+  `@/lib/interview`): question 1 (the static opening line) → the participant answers → **one short AI
+  follow-up** based on their answer (`buildInterviewSystemPrompt`) → they answer → the next question,
+  asked word for word without a model call → … → a closing line pointing to **Finish interview**.
+  Questions that don't apply to the version are skipped (`none`: 3 questions, `standard`: 4,
+  `sustainable`: 5). A failed model call logs no reply, so the participant's retry stays on the same
+  step. Logs `interview_user_message`/`interview_assistant_message` (with `step`)/`interview_error`.
 
 Both AI versions (and the interview, in every version) use the same `OPENAI_MODEL`. Both return `502`
-with a friendly message if the call fails (including a missing `OPENAI_API_KEY`); the chat UI surfaces
-that inline in either case.
+with a friendly message if the call fails; the chat UI surfaces that inline in either case.
+
+**Mock mode**: with `OPENAI_MODEL=mock`, or no `OPENAI_API_KEY`, `callChatModel` returns a canned reply
+without calling OpenAI, with `usage: null`, and `AI_MODEL` (logged on every AI event) is `"mock"`. The
+task chat says it's a mock reply; interview follow-ups are "Thanks, can you say a bit more about that?",
+so the interview still runs through all its questions.
 
 `callChatModel` also:
 - Logs OpenAI's `usage` object (prompt/completion token counts) on every successful reply, for
@@ -362,6 +478,53 @@ that inline in either case.
   (a `400` with `error.param: "temperature"`). On that specific error it retries once without the
   parameter rather than failing the request — untested against a real `gpt-5.6-terra` call, since no
   `OPENAI_API_KEY` has been available to verify it against the live API yet.
+
+## Data and export
+
+Everything is in one SQLite file (`dev.db` locally, `demo.db` for the demo). Every row is keyed by the
+participant's `sid` (`Session.sessionId`), the same value the Qualtrics surveys store as embedded data, so
+the app's export and the Qualtrics exports join on `sid`.
+
+From `/admin` → **Export** (or `GET /admin/export`, `ADMIN_PASSWORD`):
+
+- **All data as one JSON file**: `?format=json` → `{ exportedAt, sessionCount, sessions: { <sid>: { session,
+  drafts, snapshots, events, task_plans, active_time } } }`. Event payloads are included as JSON.
+- **CSV, one table per file**: `?format=csv&table=sessions|drafts|snapshots|events|task_plans|active_time`.
+  The first column is always `sid`. `sessions.csv` includes the version, peer, timestamps, journey stage and
+  one status column per task; `events.csv` has the payload as a JSON string.
+- **One session**: add `&sid=<sid>` to any export, or use the JSON link in the sessions table.
+
+`docs/sample-records/` has a small export from a seeded demo run (fake test text only), showing each
+file's format.
+
+Voice messages are stored in the event log as base64 audio (`peer_voice_message`), so they're in the
+JSON and `events.csv` exports too. Exports contain participants' writing: treat them as study data.
+
+## Known limitations and next steps for the full research interface
+
+This prototype is for demos and pilot testing. Before running the study:
+
+- **Hosting and data**: move to a permanent host and a managed database after a privacy and security
+  review (data location, encryption, access, retention). The demo runs on a laptop; its link lasts only
+  while `npm run demo` runs, and SQLite in one file isn't meant for many simultaneous participants.
+- **Assignment and recruitment**: random assignment to versions and recruitment links (e.g. from
+  Prolific or a participant pool) instead of hand-made links from `/admin`.
+- **Surveys**: build the real Qualtrics surveys and set their URLs (see [Qualtrics setup](#qualtrics-setup)).
+- **Consent**: replace the placeholder with the IRB-approved consent text.
+- **Content still in draft**: the instructions and understanding check (`config/instructions.json`) and
+  interview questions 2–5 (`config/interview.json`) need PI review. The tasks are provisional.
+- **Peer pairing**: pairs are made by hand (`&peer=`). The study needs automated pairing of participants
+  who are online at the same time, and a fallback when a partner drops out.
+- **Access control**: Basic Auth with shared passwords is fine for a demo; the study needs per-participant
+  links without a shared password and proper researcher accounts for the admin page.
+- **Repo visibility**: decide whether the repo stays public before real study content or data handling
+  details are added.
+- **Scale testing**: load-test with the expected number of simultaneous participants (autosave, polling,
+  voice uploads) on the production host.
+- **Outputs for blinded review**: export the final drafts without version labels or identifying details,
+  in a format the reviewers can grade blind.
+- **AI model**: test against the real `gpt-5.6-terra` API (only mock mode has been tested end to end), and
+  confirm per-participant cost from the logged `usage`.
 
 ## Logging from server code
 
