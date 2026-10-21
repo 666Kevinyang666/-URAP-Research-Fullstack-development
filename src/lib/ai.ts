@@ -2,8 +2,16 @@ import { prisma } from "./db";
 import { BRIEF, type BriefPage, type Task } from "./config";
 import type { Version } from "./constants";
 
+// [Nitin, week 4] Mock mode for demos and local testing: OPENAI_MODEL=mock, or no OPENAI_API_KEY,
+// returns a canned reply without calling OpenAI, and AI_MODEL (logged on every AI event) is "mock".
+export const MOCK_AI = process.env.OPENAI_MODEL?.trim() === "mock" || !process.env.OPENAI_API_KEY?.trim();
+
 /** Chat model used for both AI versions, configurable without a code change. */
-export const AI_MODEL = process.env.OPENAI_MODEL?.trim() || "gpt-5.6-terra";
+export const AI_MODEL = MOCK_AI ? "mock" : process.env.OPENAI_MODEL?.trim() || "gpt-5.6-terra";
+
+// [Nitin, week 4] Default canned reply in mock mode; callers can pass their own (the interview does).
+const MOCK_REPLY =
+  "(Mock AI reply: no AI model is connected in this demo.) In the full study, the assistant would answer here using the brief, the task and your draft.";
 
 const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
 const TEMPERATURE = 0.4;
@@ -36,7 +44,13 @@ function isUnsupportedTemperatureError(status: number, data: unknown): boolean {
  * reasoning-tier models reject a custom temperature; on that specific error, retries once
  * without it rather than failing the whole request.
  */
-export async function callChatModel(messages: ChatMessage[]): Promise<ChatResult> {
+export async function callChatModel(
+  messages: ChatMessage[],
+  opts: { mockReply?: string } = {}, // [Nitin, week 4] reply text used in mock mode
+): Promise<ChatResult> {
+  // [Nitin, week 4] Mock mode: no OpenAI call, no usage.
+  if (MOCK_AI) return { text: opts.mockReply ?? MOCK_REPLY, usage: null };
+
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) throw new Error("OPENAI_API_KEY is not configured");
 

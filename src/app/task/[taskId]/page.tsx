@@ -132,11 +132,15 @@ export default async function TaskPage({ params }: { params: Promise<{ taskId: s
             snapshotIntervalMs={STUDY.snapshotIntervalMs}
           />
         </section>
-        {/* Always rendered (empty when no side features) so the layout is identical across versions. */}
+        {/* Always rendered (a one-line note when there's no AI) so the layout is identical across versions. */}
         <aside className="side-column">
           {features.taskPlan && <PlanPanel />}
           {features.effortDisplay && <EffortPanel initialAiRequestCount={effort.aiRequestCount} />}
-          {features.ai && <ChatPane taskId={taskId} version={session.version} initialMessages={aiMessages} />}
+          {features.ai ? (
+            <ChatPane taskId={taskId} version={session.version} initialMessages={aiMessages} />
+          ) : (
+            <p className="no-ai-note">AI assistance is not available in this session.</p>
+          )}
         </aside>
         {/* checkpointTrigger (config/study.json) picks the time-budget checkpoint (default) or the
             AI-request-count checkpoint with its peer check-in stage. */}

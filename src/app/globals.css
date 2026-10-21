@@ -28,6 +28,12 @@ body {
   position: relative;
 }
 
+/* Side column text in the "none" version, in place of the AI chat pane. */
+.no-ai-note {
+  margin: 0;
+  color: #555;
+}
+
 /* While paused, the task and side panels are hidden but keep their size. */
 .is-paused .task-column > :not(.pause-banner),
 .is-paused .side-column > * {
