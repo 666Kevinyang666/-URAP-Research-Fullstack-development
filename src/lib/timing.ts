@@ -9,9 +9,19 @@ import { STUDY } from "./config";
  * Multiplier applied to every session-clock timing, for demos and testing. 1 = real time;
  * 1/60 (≈ 0.0167) turns 60 minutes into 60 seconds. Doesn't affect task time budgets,
  * which are compared against active task time, not the session clock.
+ *
+ * The DEMO_TIME_SCALE environment variable overrides demoTimeScale in config/study.json, so a
+ * demo can speed up the clock without editing committed config (`npm run demo` sets 0.05).
+ * next.config.ts inlines it into server and browser code when the app is built or `next dev`
+ * starts, so change it by restarting (the demo script rebuilds every run).
  */
+const ENV_TIME_SCALE = Number(process.env.DEMO_TIME_SCALE);
 export const DEMO_TIME_SCALE: number =
-  typeof STUDY.demoTimeScale === "number" && STUDY.demoTimeScale > 0 ? STUDY.demoTimeScale : 1;
+  ENV_TIME_SCALE > 0
+    ? ENV_TIME_SCALE
+    : typeof STUDY.demoTimeScale === "number" && STUDY.demoTimeScale > 0
+      ? STUDY.demoTimeScale
+      : 1;
 
 /** Converts configured session-clock minutes to (scaled) ms. */
 export function sessionMinutesToMs(minutes: number): number {
