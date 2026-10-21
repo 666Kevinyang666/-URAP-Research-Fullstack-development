@@ -125,10 +125,11 @@ for (let i = 0; ; i++) {
 }
 
 console.log("[demo] Starting a Cloudflare quick tunnel (first run downloads cloudflared)...");
-const npx = isWindows ? "npx.cmd" : "npx";
-const tunnel = start("The tunnel", npx, ["--yes", "cloudflared", "tunnel", "--no-autoupdate", "--url", `http://localhost:${PORT}`], {
-  shell: isWindows, // .cmd files need a shell on Windows
-});
+const tunnelArgs = ["--yes", "cloudflared", "tunnel", "--no-autoupdate", "--url", `http://localhost:${PORT}`];
+const tunnel = isWindows
+  ? // npx is a .cmd file on Windows, which needs a shell; the arguments are fixed strings.
+    start("The tunnel", ["npx", ...tunnelArgs].join(" "), [], { shell: true })
+  : start("The tunnel", "npx", tunnelArgs);
 
 let announced = false;
 const onTunnelOutput = (data) => {
