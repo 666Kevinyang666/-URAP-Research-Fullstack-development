@@ -46,15 +46,15 @@ export default async function TaskPage({ params }: { params: Promise<{ taskId: s
 
   // Consent, instructions and Start work come first; a declined session goes to /exit.
   const stage = await getJourneyStage(session);
-  if (stage !== "work" && stage !== "ended") redirect(stagePath(stage));
+  if (stage !== "work" && stage !== "end_survey") redirect(stagePath(stage));
 
-  if (stage === "ended") {
+  if (stage === "end_survey") {
     return (
       <main>
         <h1>Thank you</h1>
         <p>Your work has been saved. Please continue to the survey.</p>
         <p>
-          <a href="/survey?from=ended_page">Continue to survey</a>
+          <a href="/survey?survey=end&from=ended_page">Continue to survey</a>
         </p>
       </main>
     );

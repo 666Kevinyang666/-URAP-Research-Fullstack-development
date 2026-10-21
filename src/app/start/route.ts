@@ -3,10 +3,11 @@ import { prisma } from "@/lib/db";
 import { logEvent } from "@/lib/logEvent";
 import { SID_COOKIE, isVersion, type Version } from "@/lib/constants";
 import { getJourneyStage, stagePath } from "@/lib/journey";
+import { publicUrl } from "@/lib/origin";
 
 // Study entry point: /start?sid=...&version=none|standard|sustainable[&peer=<otherSid>]
 // Creates or resumes the session, stores sid in a cookie, and sends the participant to their
-// current step: consent, instructions, welcome, or the first task (see @/lib/journey).
+// current step (consent, baseline survey, instructions, welcome, a task, ...; see @/lib/journey).
 export async function GET(req: NextRequest) {
   const sid = req.nextUrl.searchParams.get("sid")?.trim();
   const requestedVersion = req.nextUrl.searchParams.get("version");
@@ -50,7 +51,7 @@ export async function GET(req: NextRequest) {
     endedAt: session?.endedAt ?? null,
     workStartedAt: session?.workStartedAt ?? null,
   });
-  const res = NextResponse.redirect(new URL(stagePath(stage), req.url));
+  const res = NextResponse.redirect(publicUrl(req.headers, stagePath(stage)));
   res.cookies.set(SID_COOKIE, sid, {
     httpOnly: true,
     sameSite: "lax",

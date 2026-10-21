@@ -425,3 +425,14 @@ textarea.editor {
   margin: 4px 0 0;
   white-space: pre-wrap;
 }
+
+/* A link styled like a plain button (survey placeholder "Return to study"). */
+.button-link {
+  display: inline-block;
+  padding: 4px 12px;
+  border: 1px solid #767676;
+  border-radius: 3px;
+  background: #efefef;
+  color: #000;
+  text-decoration: none;
+}
