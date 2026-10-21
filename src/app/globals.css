@@ -436,3 +436,58 @@ textarea.editor {
   color: #000;
   text-decoration: none;
 }
+
+/* Researcher admin (/admin). */
+.admin {
+  max-width: 1200px;
+}
+
+.admin-hint {
+  color: #555;
+  font-size: 0.9em;
+}
+
+.admin-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  margin: 12px 0;
+}
+
+.admin-scroll {
+  overflow-x: auto;
+}
+
+.admin-table {
+  border-collapse: collapse;
+  margin: 8px 0;
+}
+
+.admin-table caption {
+  text-align: left;
+  font-weight: bold;
+  margin-bottom: 4px;
+}
+
+.admin-table th,
+.admin-table td {
+  border: 1px solid #ccc;
+  padding: 4px 8px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.admin-link {
+  word-break: break-all;
+}
+
+.admin-tasks {
+  margin: 0;
+  padding-left: 20px;
+  white-space: nowrap;
+}
+
+.task-status-complete {
+  color: #1b5e20;
+}
