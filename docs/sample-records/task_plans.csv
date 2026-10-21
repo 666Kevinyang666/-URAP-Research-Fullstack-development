@@ -1,0 +1,7 @@
+sid,task_id,purpose,good_enough,time_budget_minutes,created_at,updated_at
+demo-sustainable-a-3f316714,strategy,Test purpose (demo),Test good-enough line (demo),1,2026-10-21T01:15:19.739Z,2026-10-21T01:15:19.739Z
+demo-sustainable-b-d771b7f3,strategy,Test purpose (demo),Test good-enough line (demo),300,2026-10-21T01:15:19.900Z,2026-10-21T01:15:19.900Z
+demo-sustainable-a-3f316714,evidence-synthesis,Test purpose (demo),Test good-enough line (demo),300,2026-10-21T01:20:00.083Z,2026-10-21T01:20:00.083Z
+demo-sustainable-a-3f316714,creative,Test purpose (demo),Test good-enough line (demo),300,2026-10-21T01:20:00.714Z,2026-10-21T01:20:00.714Z
+demo-sustainable-b-d771b7f3,evidence-synthesis,Test purpose (demo),Test good-enough line (demo),300,2026-10-21T01:20:05.864Z,2026-10-21T01:20:05.864Z
+demo-sustainable-b-d771b7f3,creative,Test purpose (demo),Test good-enough line (demo),300,2026-10-21T01:20:06.469Z,2026-10-21T01:20:06.469Z

@@ -1,0 +1,13 @@
+sid,task_id,status,revision_count,updated_at,content
+demo-none-f8868c8a,creative,complete,1,2026-10-21T01:15:26.141Z,"Fake test draft for demo-none-f8868c8a, creative."
+demo-none-f8868c8a,evidence-synthesis,complete,1,2026-10-21T01:15:25.758Z,"Fake test draft for demo-none-f8868c8a, task 2 (saved on leave)."
+demo-none-f8868c8a,strategy,complete,1,2026-10-21T01:15:25.209Z,"Fake test draft for demo-none-f8868c8a, task 1. Campaign concept: sample text."
+demo-standard-3d7fff53,creative,complete,1,2026-10-21T01:15:26.236Z,"Fake test draft for demo-standard-3d7fff53, creative."
+demo-standard-3d7fff53,evidence-synthesis,complete,1,2026-10-21T01:15:25.744Z,"Fake test draft for demo-standard-3d7fff53, task 2 (saved on leave)."
+demo-standard-3d7fff53,strategy,complete,1,2026-10-21T01:15:25.195Z,"Fake test draft for demo-standard-3d7fff53, task 1. Campaign concept: sample text."
+demo-sustainable-a-3f316714,creative,complete,1,2026-10-21T01:20:00.905Z,"Fake test draft for demo-sustainable-a-3f316714, creative."
+demo-sustainable-a-3f316714,evidence-synthesis,complete,1,2026-10-21T01:20:00.279Z,"Fake test draft for demo-sustainable-a-3f316714, evidence-synthesis."
+demo-sustainable-a-3f316714,strategy,complete,1,2026-10-21T01:19:59.616Z,"Fake test draft for demo-sustainable-a-3f316714, task 1."
+demo-sustainable-b-d771b7f3,creative,complete,1,2026-10-21T01:20:06.648Z,"Fake test draft for demo-sustainable-b-d771b7f3, creative."
+demo-sustainable-b-d771b7f3,evidence-synthesis,complete,1,2026-10-21T01:20:06.086Z,"Fake test draft for demo-sustainable-b-d771b7f3, evidence-synthesis."
+demo-sustainable-b-d771b7f3,strategy,complete,1,2026-10-21T01:20:05.381Z,"Fake test draft for demo-sustainable-b-d771b7f3, task 1."
