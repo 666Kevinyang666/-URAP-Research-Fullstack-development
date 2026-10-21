@@ -73,13 +73,17 @@ export default async function AdminPage() {
                     <td>{fmt(s.endedAt)}</td>
                     <td className="stage">{s.stage.replace(/_/g, " ")}</td>
                     <td>
-                      <ol className="admin-tasks">
-                        {s.tasks.map((t) => (
-                          <li key={t.id} title={t.title} className={`task-status-${t.status}`}>
-                            {t.status.replace(/_/g, " ")}
-                          </li>
-                        ))}
-                      </ol>
+                      {s.stage === "not_opened" ? (
+                        "—"
+                      ) : (
+                        <ol className="admin-tasks">
+                          {s.tasks.map((t) => (
+                            <li key={t.id} title={t.title} className={`task-status-${t.status}`}>
+                              {t.status.replace(/_/g, " ")}
+                            </li>
+                          ))}
+                        </ol>
+                      )}
                     </td>
                     <td>
                       <CopyButton text={origin + s.link} />
