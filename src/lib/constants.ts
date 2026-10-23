@@ -17,6 +17,7 @@ export const CLIENT_EVENT_TYPES = [
   "task_close",
   "end_work_prompt",
   "end_work_cancel",
+  "brief_download",
 ] as const;
 
 export const SID_COOKIE = "sid";

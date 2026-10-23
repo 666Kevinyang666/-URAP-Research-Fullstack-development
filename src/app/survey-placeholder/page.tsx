@@ -1,33 +1,39 @@
-// Stand-in for the real Qualtrics survey, so "Continue to survey" works before a real
-// survey link exists (config/study.json's qualtricsUrl points here by default). Replace
-// qualtricsUrl with the real Qualtrics link before the study runs — see README.
+// Stand-in for the real Qualtrics surveys, so the flow works before real survey links exist
+// (config/study.json's baselineSurveyUrl and endSurveyUrl point here by default). Replace them
+// with the real Qualtrics links before the study runs — see README "Qualtrics setup".
 export default async function SurveyPlaceholder({
   searchParams,
 }: {
-  searchParams: Promise<{ sid?: string }>;
+  searchParams: Promise<{ sid?: string; survey?: string }>;
 }) {
-  const { sid } = await searchParams;
+  const { sid, survey } = await searchParams;
+  const kind = survey === "baseline" ? "baseline" : "end";
+  const returnHref = `/survey/return?survey=${kind}&sid=${encodeURIComponent(sid ?? "")}`;
 
   return (
-    <main style={{ maxWidth: 560 }}>
-      <h1>Qualtrics survey (placeholder)</h1>
-      <p>
-        This stands in for the real Qualtrics survey. A real survey link, set as{" "}
-        <code>qualtricsUrl</code> in <code>config/study.json</code>, would appear here instead and
-        return to this app with the same session ID.
+    <main className="page">
+      <h1>{kind === "baseline" ? "Start-of-session survey" : "End-of-session survey"} (placeholder)</h1>
+      <p className="placeholder-note">
+        [PLACEHOLDER — the real Qualtrics survey ({kind === "baseline" ? "baselineSurveyUrl" : "endSurveyUrl"} in
+        config/study.json) appears here in the study.]
       </p>
-      {sid && (
+      <p>
+        Session ID passed through: <code id="survey-sid">{sid || "(none)"}</code>
+      </p>
+      <p>
+        {kind === "baseline"
+          ? "After this survey, you'll read the instructions for the study."
+          : "After this survey, you'll answer a few short interview questions."}
+      </p>
+      {sid ? (
         <p>
-          Session ID passed through: <code>{sid}</code>
+          <a className="button-link" href={returnHref}>
+            Return to study
+          </a>
         </p>
+      ) : (
+        <p>No session ID was passed, so this page can&apos;t return you to the study. Open your study link again.</p>
       )}
-      <p>
-        In the full flow, finishing the endline survey here hands off to the AI interview, using
-        this same session ID, before the completion page.
-      </p>
-      <p>
-        <a href="/interview">Continue to interview</a>
-      </p>
     </main>
   );
 }

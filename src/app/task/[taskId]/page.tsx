@@ -1,6 +1,6 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { getCurrentSession } from "@/lib/session";
-import { getTask, STUDY, TASKS } from "@/lib/config";
+import { CHECKPOINT_TRIGGER, getTask, STUDY, TASKS } from "@/lib/config";
 import { prisma } from "@/lib/db";
 import { ensureDraft } from "@/lib/drafts";
 import { logEvent } from "@/lib/logEvent";
@@ -10,7 +10,7 @@ import { getFeatures } from "@/lib/features";
 import ChatPane from "@/components/ChatPane";
 import TaskEditor from "./TaskEditor";
 import TaskNav, { type NavTask } from "./TaskNav";
-import { PauseBanner, WorkspaceProvider } from "./Workspace";
+import { FlagBanner, PauseBanner, WorkspaceProvider } from "./Workspace";
 import { getPauseState } from "@/lib/pause";
 import { getEffort } from "@/lib/effort";
 import { getPlan } from "@/lib/plans";
@@ -19,6 +19,15 @@ import EffortPanel from "./EffortPanel";
 import { CHECKPOINT_THRESHOLDS, PEER_CHECKPOINT_INDEX, getResolvedCheckpointIndices } from "@/lib/checkpoints";
 import { getPeerCheckinDoneIndices } from "@/lib/peer";
 import Checkpoint from "./Checkpoint";
+import TaskContent from "./TaskContent";
+import { getJourneyStage, stagePath } from "@/lib/journey";
+import NoSession from "@/components/NoSession";
+import { getBudgetCheckpointState } from "@/lib/budgetCheckpoint";
+import BudgetCheckpoint from "./BudgetCheckpoint";
+import { getHandledBreakIndices } from "@/lib/breaks";
+import BreakPrompt from "./BreakPrompt";
+import { getPeerCheckinV2Ended, getPeerCheckinV2Shown } from "@/lib/peerVoice";
+import PeerCheckinV2 from "./PeerCheckinV2";
 
 export const dynamic = "force-dynamic";
 
@@ -33,22 +42,19 @@ export default async function TaskPage({ params }: { params: Promise<{ taskId: s
   if (!task) notFound();
 
   const session = await getCurrentSession();
-  if (!session) {
-    return (
-      <main>
-        <h1>Session not found</h1>
-        <p>Please open this study using the link you were given.</p>
-      </main>
-    );
-  }
+  if (!session) return <NoSession />;
 
-  if (session.endedAt) {
+  // Consent, instructions and Start work come first; a declined session goes to /exit.
+  const stage = await getJourneyStage(session);
+  if (stage !== "work" && stage !== "end_survey") redirect(stagePath(stage));
+
+  if (stage === "end_survey") {
     return (
       <main>
         <h1>Thank you</h1>
         <p>Your work has been saved. Please continue to the survey.</p>
         <p>
-          <a href="/survey?from=ended_page">Continue to survey</a>
+          <a href="/survey?survey=end&from=ended_page">Continue to survey</a>
         </p>
       </main>
     );
@@ -75,12 +81,21 @@ export default async function TaskPage({ params }: { params: Promise<{ taskId: s
     features.taskPlan ? getPlan(session.sessionId, taskId) : null,
   ]);
   const aiMessages = features.ai ? await getConversation(session.sessionId, taskId) : [];
-  const [resolvedCheckpointIndices, peerDoneIndices] = features.checkpoints
+  const handledBreaks = features.breakPrompts ? await getHandledBreakIndices(session.sessionId) : [];
+  const useBudgetCheckpoint = features.checkpoints && CHECKPOINT_TRIGGER === "time_budget";
+  const budgetCheckpoint = useBudgetCheckpoint
+    ? await getBudgetCheckpointState(session.sessionId, taskId)
+    : { shown: false, flag: null };
+  const [resolvedCheckpointIndices, peerDoneIndices] =
+    features.checkpoints && !useBudgetCheckpoint
     ? await Promise.all([
         getResolvedCheckpointIndices(session.sessionId, taskId),
         getPeerCheckinDoneIndices(session.sessionId, taskId),
       ])
     : [[], []];
+  const [peerV2Shown, peerV2Ended] = features.peerChat
+    ? await Promise.all([getPeerCheckinV2Shown(session.sessionId), getPeerCheckinV2Ended(session.sessionId)])
+    : [false, false];
 
   return (
     <WorkspaceProvider
@@ -92,6 +107,14 @@ export default async function TaskPage({ params }: { params: Promise<{ taskId: s
       activeTimeFlushIntervalMs={STUDY.activeTimeFlushIntervalMs}
       planRequired={features.taskPlan}
       initialPlan={plan}
+      workStartedAt={session.workStartedAt?.toISOString() ?? null}
+      serverNowAtRender={Date.now()}
+      initialPauseInfo={
+        pauseState.paused
+          ? { since: pauseState.since.getTime(), reason: pauseState.reason, breakIndex: pauseState.breakIndex }
+          : null
+      }
+      initialFlag={budgetCheckpoint.flag}
     >
       <main className="workspace">
         <TaskNav tasks={navTasks} />
@@ -99,9 +122,8 @@ export default async function TaskPage({ params }: { params: Promise<{ taskId: s
           <PauseBanner />
           <h1>{task.title}</h1>
           <p className="task-meta">{task.required ? "Required task" : "Optional task"}</p>
-          {task.instructions.map((line, i) => (
-            <p key={i}>{line}</p>
-          ))}
+          <TaskContent task={task} />
+          <FlagBanner />
           <TaskEditor
             sessionId={session.sessionId}
             taskId={taskId}
@@ -110,13 +132,22 @@ export default async function TaskPage({ params }: { params: Promise<{ taskId: s
             snapshotIntervalMs={STUDY.snapshotIntervalMs}
           />
         </section>
-        {/* Always rendered (empty when no side features) so the layout is identical across versions. */}
+        {/* Always rendered (a one-line note when there's no AI) so the layout is identical across versions. */}
         <aside className="side-column">
           {features.taskPlan && <PlanPanel />}
           {features.effortDisplay && <EffortPanel initialAiRequestCount={effort.aiRequestCount} />}
-          {features.ai && <ChatPane taskId={taskId} version={session.version} initialMessages={aiMessages} />}
+          {features.ai ? (
+            <ChatPane taskId={taskId} version={session.version} initialMessages={aiMessages} />
+          ) : (
+            <p className="no-ai-note">AI assistance is not available in this session.</p>
+          )}
         </aside>
-        {features.checkpoints && (
+        {/* checkpointTrigger (config/study.json) picks the time-budget checkpoint (default) or the
+            AI-request-count checkpoint with its peer check-in stage. */}
+        {useBudgetCheckpoint && <BudgetCheckpoint initialShown={budgetCheckpoint.shown} />}
+        {features.breakPrompts && <BreakPrompt initialHandled={handledBreaks} />}
+        {features.peerChat && <PeerCheckinV2 initialShown={peerV2Shown} initialEnded={peerV2Ended} />}
+        {features.checkpoints && !useBudgetCheckpoint && (
           <Checkpoint
             thresholds={CHECKPOINT_THRESHOLDS}
             peerIndex={PEER_CHECKPOINT_INDEX}

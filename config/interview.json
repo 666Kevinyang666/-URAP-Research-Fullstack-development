@@ -1,9 +1,32 @@
 {
+  "_note": "Question 1 is from the PI's interview guide. Questions 2-5 are DRAFTS for PI review. versions: which study versions are asked the question (omit = all). After each answer the interviewer asks one short follow-up, then the next question.",
   "questions": [
-    "Walk me through how you decided a task was finished — what told you it was ready?",
-    "Was there ever a moment you kept working on something after you'd already decided it was done? What happened?",
-    "How did you decide how much time or effort a task deserved?",
-    "How, if at all, did using the AI assistant change how much you revised your work?",
-    "What effect, if any, did checking in with your peer have on how you felt about finishing a task?"
-  ]
+    {
+      "id": "experience",
+      "text": "What was your experience with the tasks?"
+    },
+    {
+      "id": "deciding_done",
+      "draft": true,
+      "text": "How did you decide when a task was done and ready to submit?"
+    },
+    {
+      "id": "time_effort",
+      "draft": true,
+      "text": "How did you decide how much time and effort to put into each task?"
+    },
+    {
+      "id": "ai_use",
+      "draft": true,
+      "versions": ["standard", "sustainable"],
+      "text": "How did you use the AI assistant, and did it change when you decided to stop working on a task?"
+    },
+    {
+      "id": "check_ins",
+      "draft": true,
+      "versions": ["sustainable"],
+      "text": "During the session you had some check-ins: the time-budget check, the break prompts, and the conversation with another participant. How, if at all, did they affect how you worked?"
+    }
+  ],
+  "mockFollowUp": "Thanks, can you say a bit more about that?"
 }

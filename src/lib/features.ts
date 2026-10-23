@@ -12,16 +12,21 @@ export type Features = {
   taskPlan: boolean;
   /** Effort panel (active time, AI requests, revisions). Metrics are logged in every version. */
   effortDisplay: boolean;
-  /** Completion checkpoints (Kevin). */
+  /**
+   * Completion checkpoint (Kevin). Opened by the time budget or the AI request count,
+   * per config/study.json's checkpointTrigger.
+   */
   checkpoints: boolean;
   /** Peer chat (Kevin). */
   peerChat: boolean;
+  /** Break prompts at the session-clock times in config/study.json (breakPromptMinutes). */
+  breakPrompts: boolean;
 };
 
 export const FEATURES: Record<Version, Features> = {
-  none: { ai: false, taskPlan: false, effortDisplay: false, checkpoints: false, peerChat: false },
-  standard: { ai: true, taskPlan: false, effortDisplay: false, checkpoints: false, peerChat: false },
-  sustainable: { ai: true, taskPlan: true, effortDisplay: true, checkpoints: true, peerChat: true },
+  none: { ai: false, taskPlan: false, effortDisplay: false, checkpoints: false, peerChat: false, breakPrompts: false },
+  standard: { ai: true, taskPlan: false, effortDisplay: false, checkpoints: false, peerChat: false, breakPrompts: false },
+  sustainable: { ai: true, taskPlan: true, effortDisplay: true, checkpoints: true, peerChat: true, breakPrompts: true },
 };
 
 export function getFeatures(version: Version): Features {

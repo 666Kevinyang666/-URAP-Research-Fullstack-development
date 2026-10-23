@@ -1,0 +1,51 @@
+{
+  "_note": "DRAFT instructions and understanding check, written for the prototype and pending PI review. Keep the three versions matched in length; check with the word counts in the README.",
+  "title": "Instructions",
+  "shared": [
+    "You will join the marketing team of Frame, a fictional cinema chain, and work on five writing tasks: three required and two optional. Write each answer as text in the editor on the task page. Your work saves automatically.",
+    "You can move between tasks at any time using the task list. Mark a task complete when you consider it finished; you can reopen it later. Use Pause if you need to step away. When you are finished, select End work. After that, you can no longer edit any task.",
+    "The Frame Marketing Brief has the company details and customer evidence. A link to it appears on every task page."
+  ],
+  "versions": {
+    "none": [
+      "Work on your own in this session. There is no AI assistant, and please do not use any outside AI tools or websites. Rely on the brief and your own judgment, and decide for yourself how much time each task needs and when it is good enough."
+    ],
+    "standard": [
+      "An AI assistant is available in a panel beside each task. You can ask it questions, request ideas or feedback, and copy its replies into your answer. Please do not use any outside AI tools or websites. Decide for yourself how much time each task needs."
+    ],
+    "sustainable": [
+      "An AI assistant is available beside each task. Before each task you set a goal and time budget; the app checks in when you reach your budget, suggests short breaks, and offers one check-in with another participant. Please do not use any outside AI tools."
+    ]
+  },
+  "check": {
+    "intro": "Before you start, please answer these questions. If an answer is wrong, we will show the correct one and you can try again.",
+    "questions": [
+      {
+        "id": "required_tasks",
+        "text": "How many tasks are required?",
+        "options": ["Two", "Three", "Five"],
+        "answer": { "none": 1, "standard": 1, "sustainable": 1 }
+      },
+      {
+        "id": "end_work",
+        "text": "What happens after you select End work?",
+        "options": [
+          "You can keep editing your tasks",
+          "You can no longer edit any task",
+          "Your answers are deleted"
+        ],
+        "answer": { "none": 1, "standard": 1, "sustainable": 1 }
+      },
+      {
+        "id": "ai_use",
+        "text": "Which of these may you use while working?",
+        "options": [
+          "The brief and the AI assistant beside each task",
+          "Only the brief and your own judgment",
+          "Any AI tool or website"
+        ],
+        "answer": { "none": 1, "standard": 0, "sustainable": 0 }
+      }
+    ]
+  }
+}

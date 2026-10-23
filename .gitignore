@@ -5,6 +5,11 @@ node_modules
 .next
 .DS_Store
 *.db-journal
+*.db-wal
+*.db-shm
 next-env.d.ts
 *.tsbuildinfo
 src/generated
+
+# PI source documents (private)
+.inputs/

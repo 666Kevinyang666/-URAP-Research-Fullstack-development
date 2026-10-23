@@ -51,6 +51,11 @@ export default function TaskNav({ tasks }: { tasks: NavTask[] }) {
 
   return (
     <nav className="task-nav" aria-label="Tasks">
+      <p className="brief-link">
+        <a href={`/brief?from=task&taskId=${encodeURIComponent(ws.taskId)}`} target="_blank" rel="noopener">
+          Frame Marketing Brief
+        </a>
+      </p>
       <h2>Tasks</h2>
       <ol className="task-list">
         {withLive.map((t) => (
