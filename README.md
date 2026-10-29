@@ -68,7 +68,8 @@ private HTTPS link (a Cloudflare quick tunnel: no account, no cost).
    (one `none` link, one `standard` link, and two `sustainable` links paired with each other for the peer
    check-in), or pick a version and an optional sid and click **Create link**. Copy each link with its
    **Copy** button and send one link per person, plus `DEMO_PASSWORD`. A link opened a second time
-   resumes the same session.
+   resumes the same session. Generated sids are neutral (`demo-…`, `p-…`), since participants can see
+   their sid; the sessions table shows each one's version.
 5. Press **Ctrl+C** to stop the app and the tunnel. The link stops working as soon as the command stops,
    and every run gets a new link. Data stays in `demo.db` between runs; `npm run demo:reset` deletes it.
 
@@ -95,15 +96,22 @@ Every version follows the same path; only flagged features differ inside the tas
 3. Start-of-session survey: `/survey?survey=baseline` → Qualtrics (`baselineSurveyUrl`; until it exists,
    `/survey-placeholder`) → `/survey/return?survey=baseline&sid=...` → instructions. See
    [Qualtrics setup](#qualtrics-setup).
-4. `/instructions`: version-specific instructions, then a 3-question understanding check. A wrong
-   answer shows the correct one and the participant retries until all are correct.
-5. `/welcome`: "Welcome to Frame", a link to the brief, and **Start work**, which sets
-   `Session.workStartedAt` once. This starts the session clock (breaks, peer check-in).
+4. `/instructions`: version-specific instructions, then a 3-question understanding check (the same
+   questions and answers in every version). A wrong answer shows the correct one and the participant
+   retries until all are correct.
+5. `/welcome`: "Welcome to Frame", the brief, and **Start work**, which sets `Session.workStartedAt`
+   once. This starts the session clock (breaks, peer check-in). With `focusMode`, Start work also
+   enters full screen (see [Focus mode](#focus-mode-focusmode)).
 6. `/task/[taskId]`: the five tasks (task pages redirect to the current step until work has started).
-   **Mark task complete** first asks the completion questions. **End work** closes editing.
+   **Mark task complete** needs an answer of at least `minAnswerCharsToComplete` characters, then asks
+   the completion questions. **End work** is disabled until all three required tasks are complete,
+   and then closes editing. **Withdraw from study** (sidebar footer) is available throughout.
 7. End-of-session survey: `/survey?survey=end` → Qualtrics (`endSurveyUrl`) →
-   `/survey/return?survey=end&sid=...` → `/interview` (five questions, each with one AI follow-up) →
+   `/survey/return?survey=end&sid=...` → `/interview` (up to five questions, each with one AI follow-up) →
    `/complete`.
+
+**Withdraw** ends the session immediately and shows `/exit` ("You have withdrawn from the study"). It
+skips the end survey and interview (pending PI decision); a withdrawn session can't reach them.
 
 A resumed `/start` link, or any page opened out of order, goes to the participant's current step.
 
@@ -121,11 +129,14 @@ Never commit `.env`, `demo.db`, passwords, API keys, `.inputs/`, or real partici
 
 `src/lib/features.ts` maps each version to the features it gets. Check flags (`getFeatures(version)`)
 instead of comparing version strings. Layout and editor size are identical in every version; the side
-column is always rendered; in `none` it only says "AI assistance is not available in this session."
+column is always rendered: the AI pane, or in `none` the drafting notes in the same place and size (with
+neither, a one-line "AI assistance is not available.").
 
 | Flag | none | standard | sustainable | What it controls |
 | --- | --- | --- | --- | --- |
 | `ai` | – | ✓ | ✓ | AI chat pane |
+| `focusMode` | ✓ | – | – | Full screen from Start work, "Please return to the study" overlay, brief in an in-page panel. Set by `focusModeVersions` in `config/study.json` |
+| `notesPad` | ✓ | – | – | "Drafting notes" panel, one per task (`POST /api/notes`). Set by `notesPadVersions` in `config/study.json`. With `ai` too, it goes below the AI pane |
 | `taskPlan` | – | – | ✓ | Plan form before the first edit of each task, plan panel, `POST /api/plan` |
 | `effortDisplay` | – | – | ✓ | Effort panel (metrics are logged in every version) |
 | `checkpoints` | – | – | ✓ | Completion checkpoint: time-budget pop-up (`POST /api/budget-checkpoint`) or AI-request dialog (`POST /api/checkpoint`), per `checkpointTrigger` |
@@ -165,7 +176,7 @@ All study content is in `config/`; edit the JSON and restart (`npm run dev`, or 
 | "Welcome to Frame" page | `config/welcome.json` |
 | Instructions and understanding check (per version) | `config/instructions.json` |
 | Interview questions (and which versions get each) | `config/interview.json` |
-| Survey URLs, prompt timings (breaks, peer check-in), checkpoint trigger, autosave/snapshot intervals | `config/study.json` |
+| Survey URLs, prompt timings (breaks, peer check-in), checkpoint trigger, autosave/snapshot intervals, minimum answer length, which versions get focus mode and drafting notes, large-paste size | `config/study.json` |
 | Which version gets which feature | `src/lib/features.ts` |
 | Consent text | `src/app/consent/page.tsx` (placeholder) |
 | Treatment prompt wording | `src/app/task/[taskId]/BudgetCheckpoint.tsx`, `BreakPrompt.tsx`, `PeerCheckinV2.tsx` |
@@ -177,8 +188,8 @@ Details of each file are below.
 - `config/tasks.json`: **provisional** — the PI's Provisional Task List (five Frame tasks, exact wording).
   An array of `{ id, title, required, intro[], quote?, submit[], materials?, closing? }`, shown in this
   order in the task list. `quote` is shown after the first intro paragraph; a leading `Label:` in a
-  `submit` bullet is shown in bold. `required: false` tasks are optional and don't trigger the End work
-  warning. The old placeholder ids are kept, mapped by task type: `strategy` = Task 1 (campaign),
+  `submit` bullet is shown in bold. Every `required: true` task must be complete before End work;
+  `required: false` tasks are optional and never block it. The old placeholder ids are kept, mapped by task type: `strategy` = Task 1 (campaign),
   `evidence-synthesis` = Task 2 (why customers don't book), `creative` = Task 3 (TV ad), `optional-1` =
   Task 4 (competitor response), `optional-2` = Task 5 (film finder). Changing task ids orphans existing
   rows for the old ids. `src/lib/config.ts` derives `instructions[]` (the full task text as lines) for the
@@ -188,9 +199,10 @@ Details of each file are below.
 - `config/welcome.json`: the "Welcome to Frame" intro on `/welcome`.
 - `config/instructions.json`: **draft** instructions and the understanding check, pending PI review.
   `shared` paragraphs plus one paragraph per version in `versions` (keep these matched in length:
-  currently 156 / 155 / 154 words for none / standard / sustainable), and `check.questions`, each with
+  currently 188 / 187 / 186 words for none / standard / sustainable), and `check.questions`, each with
   `options` and the correct option index per version in `answer`. The answer key never reaches the
-  browser.
+  browser. Keep the questions, options and answers identical in every version, so the check never
+  hints that other versions get different tools.
 - `config/study.json`: `baselineSurveyUrl` and `endSurveyUrl` (the two Qualtrics links; both default to
   `/survey-placeholder`, a local stand-in page that shows the sid and has a **Return to study** button.
   Replace them before the study runs; see [Qualtrics setup](#qualtrics-setup)), `autosaveIntervalMs` (3 s), `snapshotIntervalMs` (5 min),
@@ -205,6 +217,13 @@ Details of each file are below.
   break. It doesn't affect task time budgets, which are compared with active task time. Set it back to
   `1` before the study runs. The `DEMO_TIME_SCALE` environment variable overrides it without editing the
   file (`npm run demo` uses `0.05`); it's built into the app at `next build` / `next dev` start.
+  Also in `config/study.json`:
+  - `minAnswerCharsToComplete` (`50`): non-whitespace characters the saved answer needs before **Mark
+    task complete** works, in every version and every completion path (editor, checkpoints, API).
+    Drafting notes don't count.
+  - `focusModeVersions` (`["none"]`) and `notesPadVersions` (`["none"]`): which versions get the
+    `focusMode` and `notesPad` flags. Use `["none", "standard", "sustainable"]` to give them to everyone.
+  - `largePasteChars` (`200`): a paste this long also logs `large_paste`.
 - `OPENAI_API_KEY` / `OPENAI_MODEL` (in `.env`): credentials and model for the AI proxy and the AI
   interview. `OPENAI_MODEL` defaults to `gpt-5.6-terra` when unset — the same model is used for both
   AI versions' task chat, per the brief.
@@ -220,26 +239,28 @@ Details of each file are below.
 | --- | --- |
 | `GET /start?sid=...&version=...&peer=<otherSid>` | Creates the session, or resumes it if the sid exists (its stored version is never changed). Sets an `sid` cookie used by all later requests and redirects to the participant's current step (consent, instructions, welcome, or the first task). `peer` manually pairs this session for the peer check-in — hand out two `/start` links with `peer` pointing at each other's `sid`. |
 | `GET /consent` | Consent page (placeholder text): Consent or Decline. |
-| `GET /exit` | Shown after declining consent. |
+| `GET /exit` | Shown after declining consent or withdrawing (different text for each). |
 | `GET /instructions` | Version-specific instructions and the understanding check. |
 | `GET /welcome` | "Welcome to Frame", brief link, Start work. |
-| `GET /brief?from=&taskId=` | Frame Marketing Brief, opened in a new tab from task pages and the welcome page. "Download PDF" prints the same content with print styles (Save as PDF). Logs `brief_open`. |
-| `GET /task/[taskId]` | Task page: task text, brief link, editor, AI chat pane (hidden for `none`). Redirects to the current step until work has started. |
+| `GET /brief?from=&taskId=` | Frame Marketing Brief, opened in a new tab from task pages and the welcome page (not in `focusMode` versions, which show it in an in-page panel). "Download PDF" prints the same content with print styles (Save as PDF). Logs `brief_open`. |
+| `GET /task/[taskId]` | Task page: task text, brief link, editor, and the AI chat pane or drafting notes. Redirects to the current step until work has started. |
 | `GET /survey?survey=baseline\|end` | Redirects to `baselineSurveyUrl` or `endSurveyUrl` with `?sid=` and `return_url` added. The baseline survey is only reachable at that step. |
 | `GET /survey/return?survey=baseline\|end&sid=` | Where a survey sends the participant back: logs `survey_returned`, restores the `sid` cookie, redirects to the next step. |
 | `GET /survey-placeholder?survey=&sid=` | Local stand-in for both Qualtrics surveys (the default URLs): shows the sid and a **Return to study** button. Replace before the study runs. |
 | `GET /admin` | Researcher admin (`ADMIN_PASSWORD`): create links, sessions table, export. Not part of the participant flow. |
 | `POST /admin/links` | `{ version, sid? }` (sid auto-generated if blank) or `{ demoSet: true }` → `{ links: [{ sid, version, peer, url }] }`. |
 | `GET /admin/export?format=json\|csv&table=&sid=` | Data export; see [Data and export](#data-and-export). |
-| `GET /interview` | End-of-session AI interview. Every version, including `none`. Not gated on `endedAt`; `/start` sends a participant here once they're back from the end survey. |
+| `GET /interview` | End-of-session AI interview. Every version, including `none`. Not gated on `endedAt`; `/start` sends a participant here once they're back from the end survey. A withdrawn session is sent to `/exit`. |
 | `GET /complete` | Static completion page; "Finish interview" lands here. |
 | `POST /api/consent` | `{ choice: "consent" \| "decline" }` → `{ next }` (the baseline survey, or `/exit`). |
 | `POST /api/instructions/check` | `{ answers: { [questionId]: optionIndex } }` → `{ allCorrect, results, next }`. |
 | `POST /api/work/start` | Start work: sets `workStartedAt` if not set yet → `{ next }`. |
 | `POST /api/draft` | Autosave `{ taskId, content, trigger }`. |
 | `POST /api/snapshot` | Save plus interval snapshot `{ taskId, content }`. |
-| `POST /api/task/complete` / `reopen` | Change task status `{ taskId, content? }`. `complete` also takes `answers` (completion questions), logged first. |
-| `POST /api/session/end` | End work: saves, snapshots every draft, sets `endedAt`. |
+| `POST /api/task/complete` / `reopen` | Change task status `{ taskId, content? }`. `complete` also takes `answers` (completion questions), logged first. `complete` returns `422` if the saved answer is under `minAnswerCharsToComplete` non-whitespace characters. |
+| `POST /api/session/end` | End work: saves, snapshots every draft and notes row, sets `endedAt`. `409 { error, incompleteRequired }` (and `end_work_blocked`) if any required task isn't complete. |
+| `POST /api/session/withdraw` | Withdraw from study `{ taskId?, content? }` → `{ next: "/exit" }`: saves, snapshots everything (`reason: "withdraw"`), sets `endedAt`, logs `withdrawn`. Work period only. |
+| `POST /api/notes` | Drafting notes autosave `{ taskId, content, trigger, snapshot? }` (`notesPad` versions only); `snapshot: true` also stores an interval snapshot. |
 | `POST /api/events` | Browser interaction events (allow-listed types only). |
 | `POST /api/ai` | AI proxy `{ taskId, message }`. Hidden/unused in the `none` version. |
 | `POST /api/pause` | Pause or resume `{ taskId, action: "pause" \| "resume", reason?: "manual" \| "break", breakIndex? }`. |
@@ -253,7 +274,7 @@ Details of each file are below.
 | `POST /api/peer` | `{ taskId, text }` to send a peer message, or `{ taskId, index, end: "returned" \| "declined" \| "left" }` to close the check-in stage. |
 | `GET /api/peer-checkin-v2` | `{ peerSessionId, available, messages }` for the v2 voice room (`peerChat` versions only; session-scoped, not per-task). |
 | `POST /api/peer-checkin-v2` | `{ shown: true }` (once, logs it was shown) · `{ audioBase64, mimeType, durationMs }` or `{ text }` to send a message · `{ end: "returned" \| "declined" \| "left" \| "peer_unavailable" }` to close the room. |
-| `POST /api/interview` | `{ message }` to talk, or `{ finish: true }` to log that the interview ended. Every version; works on an ended session. |
+| `POST /api/interview` | `{ message }` to talk, or `{ finish: true }` to log that the interview ended. Every version; works on an ended session, but not a withdrawn one. |
 
 ## Saving behavior
 
@@ -263,14 +284,30 @@ Details of each file are below.
   copy is older, so a refresh never loses text, even when the final save arrives after the page reloads.
 - `revisionCount` increases only when the saved content differs from the stored content.
 - A completed task is read-only until it is reopened. After **End work** the session is closed for editing.
-- Switching tasks in the sidebar saves the current draft and active time first, then loads the other task.
+- Switching tasks in the sidebar saves the current draft and active time first, then loads the other task
+  (with `focusMode`, by client-side navigation, since a full page load leaves full screen).
+- **Drafting notes** (`notesPad`) save the same way (every 3 s when changed, on blur, by beacon, local
+  backup, Saving… / Saved indicator), one `TaskNote` per task, and are read-only while the task is complete.
 
 ## Task workflow
 
 - **Navigation**: the sidebar lists every task with its required/optional label and status. Participants
   can move between tasks freely.
-- **End work** (sidebar): if any required task isn't complete, a dialog lists those tasks but still allows
-  ending.
+- **End work** (sidebar): disabled until every required task is complete, with "Complete all required
+  tasks before ending: Task 2, Task 3." (links to those tasks) underneath. Reopening a required task
+  makes it incomplete again. Optional tasks never block it. When it's enabled, a confirm asks "End work?
+  You won't be able to edit afterwards." The server enforces the same rule: `POST /api/session/end`
+  returns `409` with the incomplete required task ids and logs `end_work_blocked`, so it can't be
+  bypassed from the browser or by calling the API directly.
+- **Minimum answer to complete** (all versions): **Mark task complete** (and the checkpoint's Mark task
+  complete) needs a saved answer of at least `minAnswerCharsToComplete` (default 50) non-whitespace
+  characters; otherwise: "Write your answer in the editor before marking this task complete." Enforced
+  on the server for every path (`setTaskStatus` in `@/lib/drafts`, `422`, logs `task_complete_blocked`).
+- **Withdraw from study** (sidebar footer, every version, throughout the work period): a small grey
+  link, visibly unlike End work. Confirm: "Withdraw from the study? Your session will end now." Then the
+  open task is saved, every draft and notes row is snapshotted (`reason: "withdraw"`), `endedAt` is set,
+  `withdrawn` is logged, and `/exit` says the participant has withdrawn. The end survey and interview
+  are skipped. Shown as stage `withdrawn` in `/admin` and the export.
 - **Pause / resume** (all versions): hides the task and side panels and stops the active-time clock.
   The pause is session-wide and survives refreshes and task switches. The current state is the latest
   `task_pause` / `task_resume` event.
@@ -283,7 +320,39 @@ Details of each file are below.
   reopening and completing again logs a new set, so earlier answers stay in the log.
 - **Frame Marketing Brief**: every task page has a "Frame Marketing Brief" link in the sidebar that opens
   `/brief` in a new tab, which has a "Download PDF" button (print-to-PDF of the same content). Both are
-  kept until the PI chooses one.
+  kept until the PI chooses one. In `focusMode` versions the brief opens in an in-page panel instead
+  (no new tab, no PDF), logged as `brief_panel_open`.
+- **Paste logging** (all versions, so the arms stay comparable): every paste into the editor or the notes
+  logs `paste` with its length and target; one of `largePasteChars` (200) or more also logs
+  `large_paste`. Pasting is never blocked.
+
+### Focus mode (`focusMode`)
+
+For the `none` version by default (`focusModeVersions` in `config/study.json`), to discourage using
+outside tools such as another AI chat.
+
+- The welcome page says "This session runs in full screen. Please stay on this page and do not use other
+  apps or websites while working." **Start work** requests browser full screen from that click
+  (browsers only allow it from a user gesture).
+- During work, leaving full screen, hiding the tab, or the window losing focus saves the draft and shows a
+  full-page overlay: "Please return to the study. Outside tools and websites are not allowed in this
+  session." with **Return to full screen**. Editing is blocked until then. Opening a task page while not in
+  full screen (e.g. after a refresh) shows it too.
+- Logged: `fullscreen_entered`, `fullscreen_exited`, `tab_hidden`, `tab_visible`, `window_blur`,
+  `window_focus`, `focus_overlay_shown` (start of an away episode) and `focus_returned` with `awayMs`
+  (the episode's focus_away_ms). Away time doesn't count as active task time. `/admin` and `sessions.csv`
+  show each session's times away and total time away.
+- No overlay for: the brief (in-page panel), Pause and the break screen (leaving while paused is
+  logged but allowed; **Resume** re-enters full screen), End work, Withdraw, the surveys and the interview
+  (focus mode ends with End work or Withdraw).
+- If the browser has no full screen support (e.g. iPhone Safari), it logs `fullscreen_unsupported` and
+  uses only the overlay and logging.
+- **Limits**: this discourages and records outside use; it doesn't prevent it. It can't see a phone or a
+  second device, Esc always exits full screen (browsers guarantee that), and a second monitor or a window
+  that never takes focus isn't detected. Browser-level full screen (F11) isn't the same as the page's full
+  screen, so the overlay still asks to return. If the PI gives focus mode to the AI versions, the peer
+  check-in's microphone permission prompt would take focus and show the overlay; that would need an
+  exception.
 
 ### Treatment prompts (sustainable)
 
@@ -380,12 +449,17 @@ effort panel and the completion checkpoint (`src/app/task/[taskId]/Checkpoint.ts
 
 See `prisma/schema.prisma`.
 
-- **Session**: `sessionId` (from `?sid=`, unique), `version`, `createdAt`, `endedAt` (End work, or
-  declining consent), `workStartedAt` (Start work; added in migration `20261016024242_work_started_at`).
+- **Session**: `sessionId` (from `?sid=`, unique), `version`, `createdAt`, `endedAt` (End work,
+  Withdraw, or declining consent; a withdrawal is the `withdrawn` event), `workStartedAt` (Start work;
+  added in migration `20261016024242_work_started_at`).
 - **Draft**: one row per (`sessionId`, `taskId`): current `content`, `status`
   (`not_started` | `in_progress` | `complete`), `updatedAt`, `revisionCount`.
-- **Snapshot**: copies of draft content with `reason`: `interval` (every 5 min while a task is open),
-  `complete`, `reopen`, `end_work`.
+- **TaskNote** (`notesPad`; migration `20261029204658_task_notes_and_snapshot_kind`): drafting notes,
+  one row per (`sessionId`, `taskId`): `content`, `updatedAt`, `revisionCount` (content changes only).
+- **Snapshot**: copies of the answer or the notes. `kind`: `draft` (the main editor) or `notes`
+  (TaskNote; added in the same migration, existing rows are `draft`). `reason`: `interval` (every 5 min
+  while a task is open), `complete`, `reopen`, `end_work`, `withdraw`. Filter on `kind` when you want
+  only answers.
 - **TaskPlan**: one row per (`sessionId`, `taskId`): `purpose`, `goodEnough`, `timeBudgetMinutes`,
   `createdAt`, `updatedAt`. Edits overwrite the row; the history is in `task_plan_*` events.
 - **TaskActiveTime**: one row per (`sessionId`, `taskId`): `activeMs`, `updatedAt`.
@@ -398,7 +472,10 @@ See `prisma/schema.prisma`.
 | --- | --- | --- |
 | `session_start` | server | `userAgent` |
 | `session_resume` | server | `requestedVersion`, `versionMismatch`, `userAgent` |
-| `session_end` | server | `alreadyEnded`, `incompleteRequired` (task ids), per-task `status` / `activeMs` / `aiRequestCount` / `revisionCount` |
+| `session_end` | server | `alreadyEnded`, `incompleteRequired` (task ids; always empty now that End work requires every required task), per-task `status` / `activeMs` / `aiRequestCount` / `revisionCount` |
+| `end_work_blocked` | server (`/api/session/end` refused) | `incompleteRequired` (task ids) |
+| `withdrawn` | server (`/api/session/withdraw`) | `withdrawnAt`, per-task `status` / `activeMs` / `aiRequestCount` / `revisionCount` |
+| `withdraw_prompt` / `withdraw_cancel` | browser (Withdraw confirm opened / dismissed) | `clientTs` |
 | `survey_redirect` | server (`/survey`) | `survey` (`baseline`/`end`), `from` |
 | `survey_returned` | server (`/survey/return`, once per survey) | `survey` (`baseline`/`end`) |
 | `admin_link_created` | server (`/admin/links`; logged under the new sid, before the session exists) | `path` (the `/start` link), `peer` |
@@ -408,13 +485,24 @@ See `prisma/schema.prisma`.
 | `work_start` | server (`/api/work/start`, first time only) | `workStartedAt` |
 | `brief_open` | server (`/brief` page load; `taskId` set when opened from a task) | `from` (`task` / `welcome` / null) |
 | `brief_download` | browser (Download PDF clicked) | `clientTs` |
+| `brief_panel_open` | browser (`focusMode`: the in-page brief opened) | `from` (`task`/`welcome`), `clientTs` |
 | `task_completion_answers` | server (`/api/task/complete`, before `task_complete`) | `skipped`, `why`, `goodEnough` (`yes`/`mostly`/`no`/null), `goodEnoughNote`, `source` (`editor`/`checkpoint`) |
+| `task_complete_blocked` | server (Mark task complete refused: answer too short) | `answerChars`, `minAnswerChars`, `source` (`editor`/`checkpoint`/null) |
 | `task_open` | server | `status`, `revisionCount`, `length` |
 | `draft_save` | server (only when content changed) | `trigger`, `revisionCount`, `length` |
+| `notes_save` | server (`/api/notes`, only when the notes changed) | `trigger`, `revisionCount`, `length` |
+| `paste` | browser (every version; editor or notes) | `chars`, `target` (`editor`/`notes`), `large`, `clientTs` |
+| `large_paste` | browser (in addition to `paste`, for `largePasteChars` or more) | `chars`, `target`, `clientTs` |
+| `fullscreen_entered` / `fullscreen_exited` | browser (`focusMode`) | `clientTs` |
+| `fullscreen_unsupported` / `fullscreen_request_failed` | browser (`focusMode`: no full screen support, or the request was refused) | `clientTs` (+ `message`) |
+| `tab_hidden` / `tab_visible` | browser (`focusMode`) | `clientTs` |
+| `window_blur` / `window_focus` | browser (`focusMode`) | `clientTs` |
+| `focus_overlay_shown` | browser (`focusMode`: an away episode starts, overlay shown) | `reason` (`fullscreen_exit`/`tab_hidden`/`window_blur`/`not_fullscreen`), `clientTs` |
+| `focus_returned` | browser (`focusMode`: the episode ends) | `awayMs` (focus_away_ms), `reasons`, `endedBy: "inactive"` if Pause/End work/Withdraw ended it, `clientTs` |
 | `task_complete` / `task_reopen` | server | `previousStatus`, `revisionCount`, `length` |
 | `editor_focus` / `editor_blur` | browser | `clientTs` (+ `length` on blur) |
 | `visibility_hidden` / `visibility_visible` | browser | `clientTs` |
-| `task_close` | browser (page unload) | `clientTs` |
+| `task_close` | browser (page unload; with `focusMode`, a task switch: `navigation: "client"`) | `clientTs` |
 | `ai_user_message` | server (`/api/ai`, before calling the model) | `text`, `model` |
 | `ai_assistant_message` | server (`/api/ai`, on a successful reply) | `text`, `model` (`mock` in mock mode), `usage` (OpenAI's token-usage object, for per-participant cost — or `null`) |
 | `ai_error` | server (`/api/ai`, on a failed call) | `message`, `model` |
@@ -423,8 +511,8 @@ See `prisma/schema.prisma`.
 | `task_plan_submitted` | server (`/api/plan`, first save) | `purpose`, `goodEnough`, `timeBudgetMinutes` |
 | `task_plan_updated` | server (`/api/plan`, edit with changes) | `changes: { field: { from, to } }` |
 | `active_time_clamped` | server (`/api/active-time`) | `reportedMs`, `acceptedMs`, `reason` |
-| `end_work_prompt` | browser (End work dialog opened) | `incompleteRequired`, `clientTs` |
-| `end_work_cancel` | browser (dialog dismissed) | `incompleteRequired`, `clientTs` |
+| `end_work_prompt` | browser (End work confirm opened; only possible once every required task is complete) | `incompleteRequired` (always empty), `clientTs` |
+| `end_work_cancel` | browser (confirm dismissed) | `incompleteRequired` (always empty), `clientTs` |
 | `checkpoint_shown` | server (`/api/budget-checkpoint`, once per reopen episode) | `trigger: "time_budget"`, `budgetMinutes`, `activeMs` |
 | `checkpoint_resolved` | server (`/api/checkpoint` or `/api/budget-checkpoint`) | AI-request trigger: `index`, `action` (`finish`/`continue`/`pause`/`flag`), `note?`. Time-budget trigger: `trigger: "time_budget"`, `action`, `note?` (no `index`) |
 | `break_prompt_shown` | server (`/api/break-prompt`) | `breakIndex`, `sessionElapsedMs` |
@@ -488,10 +576,15 @@ the app's export and the Qualtrics exports join on `sid`.
 From `/admin` → **Export** (or `GET /admin/export`, `ADMIN_PASSWORD`):
 
 - **All data as one JSON file**: `?format=json` → `{ exportedAt, sessionCount, sessions: { <sid>: { session,
-  drafts, snapshots, events, task_plans, active_time } } }`. Event payloads are included as JSON.
-- **CSV, one table per file**: `?format=csv&table=sessions|drafts|snapshots|events|task_plans|active_time`.
-  The first column is always `sid`. `sessions.csv` includes the version, peer, timestamps, journey stage and
-  one status column per task; `events.csv` has the payload as a JSON string.
+  drafts, notes, snapshots, events, task_plans, active_time } } }`. Event payloads are included as JSON.
+- **CSV, one table per file**: `?format=csv&table=sessions|drafts|notes|snapshots|events|task_plans|active_time`.
+  The first column is always `sid`. `sessions.csv` includes the version, peer, timestamps, journey stage
+  (`withdrawn` for a withdrawal), `withdrawn` / `withdrawn_at`, one status column per task,
+  `focus_away_count` / `focus_away_ms` (focus mode), `paste_count` / `large_paste_count`, and
+  `end_work_blocked_count`. `notes.csv` has the drafting notes; `snapshots.csv` has a `kind` column
+  (`draft`/`notes`). `events.csv` has the payload as a JSON string.
+- **The sessions table** in `/admin` shows the same: stage (withdrawn in red, with the time), times away
+  and total time away, and paste counts (large pastes in brackets).
 - **One session**: add `&sid=<sid>` to any export, or use the JSON link in the sessions table.
 
 `docs/sample-records/` has a small export from a seeded demo run (fake test text only), showing each
@@ -508,7 +601,11 @@ This prototype is for demos and pilot testing. Before running the study:
   review (data location, encryption, access, retention). The demo runs on a laptop; its link lasts only
   while `npm run demo` runs, and SQLite in one file isn't meant for many simultaneous participants.
 - **Assignment and recruitment**: random assignment to versions and recruitment links (e.g. from
-  Prolific or a participant pool) instead of hand-made links from `/admin`.
+  Prolific or a participant pool) instead of hand-made links from `/admin`. Today's links carry
+  `version=none|standard|sustainable` in the URL, which a participant could read; real links should
+  carry only an opaque id, with the version assigned on the server.
+- **Focus mode**: discourages and records outside use but can't prevent it (see
+  [Focus mode](#focus-mode-focusmode)).
 - **Surveys**: build the real Qualtrics surveys and set their URLs (see [Qualtrics setup](#qualtrics-setup)).
 - **Consent**: replace the placeholder with the IRB-approved consent text.
 - **Content still in draft**: the instructions and understanding check (`config/instructions.json`) and
