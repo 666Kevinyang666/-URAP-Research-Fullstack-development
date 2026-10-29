@@ -491,3 +491,99 @@ textarea.editor {
 .task-status-complete {
   color: #1b5e20;
 }
+
+/* End work is disabled until every required task is complete; this lists what's left. */
+.end-work-blocked {
+  font-size: 0.85em;
+  color: #555;
+  margin: 6px 0 0;
+}
+
+/* A button that looks like a plain link (brief panel, Withdraw). */
+.link-button {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: #0000ee;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* Withdraw from study: low emphasis, away from End work. */
+.withdraw-footer {
+  margin: 32px 0 0;
+  padding-top: 8px;
+  border-top: 1px solid #ddd;
+}
+
+.withdraw-link.link-button {
+  font-size: 0.8em;
+  color: #666;
+}
+
+/* Drafting notes (notesPad): same box as the AI chat pane. */
+.notes-header {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.notes-input {
+  flex: 1;
+  min-height: 200px;
+  font: inherit;
+  padding: 8px;
+  resize: vertical;
+  box-sizing: border-box;
+  width: 100%;
+}
+
+/* Focus mode: "Please return to the study" covers the whole page. */
+.focus-overlay {
+  width: 100vw;
+  height: 100vh;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  border: none;
+  padding: 0;
+  background: #fff;
+}
+
+.focus-overlay::backdrop {
+  background: #fff;
+}
+
+.focus-overlay-body {
+  max-width: 520px;
+  margin: 20vh auto 0;
+  padding: 16px;
+  text-align: center;
+}
+
+.focus-note {
+  border-left: 3px solid #333;
+  padding-left: 8px;
+}
+
+/* Focus mode: the brief in an in-page panel instead of a new tab. */
+.brief-dialog {
+  width: min(800px, 95vw);
+  max-height: 90vh;
+  padding: 0 16px 16px;
+}
+
+.brief-dialog-bar {
+  position: sticky;
+  top: 0;
+  display: flex;
+  justify-content: flex-end;
+  background: #fff;
+  padding: 8px 0;
+}
+
+.stage-withdrawn {
+  color: #b00020;
+  font-weight: bold;
+}

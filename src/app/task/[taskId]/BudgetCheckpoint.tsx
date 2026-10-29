@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { post } from "@/lib/clientApi";
 import type { BudgetCheckpointAction } from "@/lib/budgetCheckpoint";
-import type { CompletionAnswers } from "@/lib/completion";
+import { ANSWER_TOO_SHORT_MESSAGE, isAnswerLongEnough, type CompletionAnswers } from "@/lib/completion";
 import { useWorkspace } from "./Workspace";
 import CompletionQuestions from "./CompletionQuestions";
 
@@ -105,6 +105,16 @@ export default function BudgetCheckpoint({ initialShown }: { initialShown: boole
       await ws.pause(); // the existing pause screen
     });
 
+  // Same minimum answer length as the editor button; the server enforces it as well.
+  const startComplete = () => {
+    if (!isAnswerLongEnough(ws.getContent())) {
+      setError(ANSWER_TOO_SHORT_MESSAGE);
+      return;
+    }
+    setError(null);
+    setStage("complete");
+  };
+
   const finish = (answers: CompletionAnswers) =>
     run(async () => {
       await post("/api/task/complete", { taskId, answers });
@@ -138,7 +148,7 @@ export default function BudgetCheckpoint({ initialShown }: { initialShown: boole
             to do?
           </p>
           <div className="prompt-choices">
-            <button type="button" onClick={() => setStage("complete")} disabled={busy}>
+            <button type="button" onClick={startComplete} disabled={busy}>
               Mark task complete
             </button>
             <button type="button" onClick={continueWorking} disabled={busy}>

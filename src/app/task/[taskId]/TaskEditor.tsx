@@ -6,7 +6,9 @@ import { beacon, logClientEvent, post } from "@/lib/clientApi";
 import { useWorkspace } from "./Workspace";
 import { PlanGate } from "./Plan";
 import CompletionQuestions from "./CompletionQuestions";
-import type { CompletionAnswers } from "@/lib/completion";
+import { ANSWER_TOO_SHORT_MESSAGE, isAnswerLongEnough, type CompletionAnswers } from "@/lib/completion";
+import { readBackup, writeBackup } from "@/lib/localBackup";
+import { logPaste } from "@/lib/paste";
 
 type SaveState = "saved" | "saving" | "not_saved";
 
@@ -18,30 +20,8 @@ type Props = {
   snapshotIntervalMs: number;
 };
 
-// Local backup of unsaved text, so a refresh or closed tab can't lose it even if the
-// final save request arrives after the next page has loaded (or never arrives).
-type Backup = { content: string; baseContent: string };
-
 function backupKey(sessionId: string, taskId: string) {
   return `draft-backup:${sessionId}:${taskId}`;
-}
-
-function readBackup(key: string): Backup | null {
-  try {
-    const raw = localStorage.getItem(key);
-    return raw ? (JSON.parse(raw) as Backup) : null;
-  } catch {
-    return null;
-  }
-}
-
-function writeBackup(key: string, backup: Backup | null) {
-  try {
-    if (backup) localStorage.setItem(key, JSON.stringify(backup));
-    else localStorage.removeItem(key);
-  } catch {
-    // Storage unavailable (e.g. blocked); server autosave still applies.
-  }
 }
 
 export default function TaskEditor(props: Props) {
@@ -60,6 +40,8 @@ export default function TaskEditor(props: Props) {
     needsPlan,
     claimPrompt,
     releasePrompt,
+    saveNow,
+    focusAway,
   } = useWorkspace();
   const [saveState, setSaveState] = useState<SaveState>("saved");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -213,6 +195,11 @@ export default function TaskEditor(props: Props) {
 
   // "Mark task complete" first asks the completion questions (skippable), then completes.
   const openCompletion = () => {
+    // The server enforces the minimum answer length too (minAnswerCharsToComplete).
+    if (!isAnswerLongEnough(contentRef.current)) {
+      setErrorMsg(ANSWER_TOO_SHORT_MESSAGE);
+      return;
+    }
     // Hold the prompt lock so a treatment prompt can't open on top of this dialog.
     if (!claimPrompt("completion-questions")) return;
     setErrorMsg(null);
@@ -227,6 +214,7 @@ export default function TaskEditor(props: Props) {
   };
 
   const complete = async (answers: CompletionAnswers) => {
+    await saveNow(); // drafting notes too, so their "complete" snapshot is current
     const toSave = contentRef.current;
     await runAction("/api/task/complete", { taskId, content: toSave, answers }, (data) => {
       markSaved(toSave);
@@ -258,8 +246,9 @@ export default function TaskEditor(props: Props) {
         <textarea
           className="editor"
           value={content}
-          readOnly={isComplete || paused || needsPlan}
+          readOnly={isComplete || paused || needsPlan || focusAway !== null}
           onChange={(e) => onChange(e.target.value)}
+          onPaste={(e) => logPaste(taskId, "editor", e)}
           onFocus={() => logClientEvent(taskId, "editor_focus")}
           onBlur={() => {
             logClientEvent(taskId, "editor_blur", { length: contentRef.current.length });
