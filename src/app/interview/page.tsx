@@ -1,4 +1,6 @@
+import { redirect } from "next/navigation";
 import { getCurrentSession } from "@/lib/session";
+import { getJourneyStage, stagePath } from "@/lib/journey";
 import { logEvent } from "@/lib/logEvent";
 import { getInterviewConversation, getOpeningMessage } from "@/lib/interview";
 import { AI_MODEL } from "@/lib/ai";
@@ -19,6 +21,10 @@ export default async function InterviewPage() {
       </main>
     );
   }
+
+  // [Nitin, week 5] Withdrawal skips the interview: a withdrawn (or declined) session goes to /exit.
+  const stage = await getJourneyStage(session);
+  if (stage === "withdrawn" || stage === "declined") redirect(stagePath(stage));
 
   let messages = await getInterviewConversation(session.sessionId);
   if (messages.length === 0) {

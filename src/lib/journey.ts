@@ -6,14 +6,16 @@ import type { CurrentSession } from "./session";
  * Where a participant is in the study flow:
  *   consent -> baseline_survey (Qualtrics) -> instructions (with understanding check)
  *   -> welcome (Start work) -> work -> end_survey (after End work) -> interview -> complete
- * Declining consent ends the session at "declined". Derived from the event log
- * (consent_given / consent_declined / survey_returned / understanding_check_passed /
+ * Declining consent ends the session at "declined"; Withdraw (during work) ends it at
+ * "withdrawn", skipping the end survey and interview. Derived from the event log
+ * (consent_given / consent_declined / withdrawn / survey_returned / understanding_check_passed /
  * interview_finished) and Session.workStartedAt / endedAt, so it survives refreshes and
  * resumed /start links.
  */
 export type JourneyStage =
   | "consent"
   | "declined"
+  | "withdrawn"
   | "baseline_survey"
   | "instructions"
   | "welcome"
@@ -30,6 +32,7 @@ export async function getJourneyStage(s: CurrentSession): Promise<JourneyStage> 
         in: [
           "consent_given",
           "consent_declined",
+          "withdrawn",
           "survey_returned",
           "understanding_check_passed",
           "interview_finished",
@@ -44,6 +47,7 @@ export async function getJourneyStage(s: CurrentSession): Promise<JourneyStage> 
       (e) => e.eventType === "survey_returned" && (e.payload as { survey?: unknown } | null)?.survey === survey,
     );
   if (has("consent_declined")) return "declined";
+  if (has("withdrawn")) return "withdrawn";
   if (s.endedAt) {
     if (has("interview_finished")) return "complete";
     if (returnedFrom("end")) return "interview";
@@ -65,6 +69,7 @@ export function stagePath(stage: JourneyStage): string {
     case "consent":
       return "/consent";
     case "declined":
+    case "withdrawn":
       return "/exit";
     case "baseline_survey":
       return "/survey?survey=baseline";

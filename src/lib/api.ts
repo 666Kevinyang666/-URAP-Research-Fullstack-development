@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentSession, type CurrentSession } from "./session";
 import { getTask } from "./config";
-import { ConflictError } from "./drafts";
+import { AnswerTooShortError, ConflictError } from "./errors";
 
 type Body = Record<string, unknown>;
 type Handler = (s: CurrentSession, body: Body) => Promise<Response>;
@@ -33,6 +33,7 @@ export function withSession(handler: Handler, opts: { allowEnded?: boolean } = {
       return await handler(s, body);
     } catch (e) {
       if (e instanceof ConflictError) return error(409, e.message);
+      if (e instanceof AnswerTooShortError) return error(422, e.message);
       console.error(e);
       return error(500, "Server error");
     }

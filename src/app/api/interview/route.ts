@@ -10,6 +10,7 @@ import {
   nextInterviewStep,
   scriptedInterviewMessage,
 } from "@/lib/interview";
+import { getJourneyStage } from "@/lib/journey";
 
 const MAX_MESSAGE_LENGTH = 4000;
 const MAX_HISTORY_MESSAGES = 30;
@@ -19,6 +20,10 @@ const MAX_HISTORY_MESSAGES = 30;
 // Body: { message } to talk, or { finish: true } to log that the interview ended.
 export const POST = withSession(
   async (s, body) => {
+    // [Nitin, week 5] Withdrawal skips the interview, so a withdrawn (or declined) session can't use it.
+    const stage = await getJourneyStage(s);
+    if (stage === "withdrawn" || stage === "declined") return error(409, "This session has ended.");
+
     if (body.finish === true) {
       await logEvent(s.sessionId, s.version, null, "interview_finished", {});
       return NextResponse.json({ ok: true });

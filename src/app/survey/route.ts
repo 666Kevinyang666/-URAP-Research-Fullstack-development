@@ -16,10 +16,11 @@ export async function GET(req: NextRequest) {
   const requested = req.nextUrl.searchParams.get("survey") ?? "end";
   const survey = isSurveyKind(requested) ? requested : "end";
 
-  // Only send someone to the baseline survey at that step (not again after returning).
-  if (survey === "baseline") {
-    const stage = await getJourneyStage(s);
-    if (stage !== "baseline_survey") return NextResponse.redirect(publicUrl(req.headers, stagePath(stage)));
+  // Only send someone to the baseline survey at that step (not again after returning), and never
+  // send a declined or withdrawn session to either survey.
+  const stage = await getJourneyStage(s);
+  if ((survey === "baseline" && stage !== "baseline_survey") || stage === "declined" || stage === "withdrawn") {
+    return NextResponse.redirect(publicUrl(req.headers, stagePath(stage)));
   }
 
   const url = publicUrl(req.headers, surveyConfigUrl(survey));
