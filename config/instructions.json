@@ -1,10 +1,11 @@
 {
-  "_note": "DRAFT instructions and understanding check, written for the prototype and pending PI review. Keep the three versions matched in length; check with the word counts in the README.",
+  "_note": "DRAFT instructions and understanding check, written for the prototype and pending PI review. Keep the three versions matched in length; check with the word counts in the README. The check questions, options and answers are the same in every version, so the check never reveals what other versions get.",
   "title": "Instructions",
   "shared": [
     "You will join the marketing team of Frame, a fictional cinema chain, and work on five writing tasks: three required and two optional. Write each answer as text in the editor on the task page. Your work saves automatically.",
-    "You can move between tasks at any time using the task list. Mark a task complete when you consider it finished; you can reopen it later. Use Pause if you need to step away. When you are finished, select End work. After that, you can no longer edit any task.",
-    "The Frame Marketing Brief has the company details and customer evidence. A link to it appears on every task page."
+    "You can move between tasks at any time using the task list. Mark a task complete when you consider it finished; you can reopen it later. Use Pause if you need to step away. You must complete all three required tasks before you can end work. When you are finished, select End work. After that, you can no longer edit any task.",
+    "The Frame Marketing Brief has the company details and customer evidence. A link to it appears on every task page.",
+    "Taking part is voluntary. You can withdraw at any time using the link at the bottom of the task list."
   ],
   "versions": {
     "none": [
@@ -27,24 +28,16 @@
         "answer": { "none": 1, "standard": 1, "sustainable": 1 }
       },
       {
-        "id": "end_work",
-        "text": "What happens after you select End work?",
-        "options": [
-          "You can keep editing your tasks",
-          "You can no longer edit any task",
-          "Your answers are deleted"
-        ],
-        "answer": { "none": 1, "standard": 1, "sustainable": 1 }
+        "id": "brief_location",
+        "text": "Where can you find the company details and customer evidence?",
+        "options": ["In the Frame Marketing Brief", "Only in the task instructions", "You need to search online"],
+        "answer": { "none": 0, "standard": 0, "sustainable": 0 }
       },
       {
-        "id": "ai_use",
-        "text": "Which of these may you use while working?",
-        "options": [
-          "The brief and the AI assistant beside each task",
-          "Only the brief and your own judgment",
-          "Any AI tool or website"
-        ],
-        "answer": { "none": 1, "standard": 0, "sustainable": 0 }
+        "id": "end_work_when",
+        "text": "When can you select End work?",
+        "options": ["At any time", "After all three required tasks are complete", "Only after all five tasks are complete"],
+        "answer": { "none": 1, "standard": 1, "sustainable": 1 }
       }
     ]
   }

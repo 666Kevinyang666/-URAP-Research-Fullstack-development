@@ -19,7 +19,8 @@ import {
 export async function GET() {
   const s = await getCurrentSession();
   if (!s) return error(401, "No active session. Open your study link again.");
-  if (!getFeatures(s.version).peerChat) return error(403, "Peer check-in is not part of this version.");
+  // [Nitin, week 5] Neutral wording: error text must not mention study versions.
+  if (!getFeatures(s.version).peerChat) return error(403, "This feature is not available.");
 
   const peerSessionId = await getPeerSessionId(s.sessionId);
   if (!peerSessionId) return NextResponse.json({ peerSessionId: null, available: false, messages: [] });
@@ -33,7 +34,8 @@ export async function GET() {
 // POST { text } -> send a text message (fallback when the mic is unavailable/denied)
 // POST { end: "returned" | "declined" | "left" | "peer_unavailable" } -> logs peer_checkin_v2_ended
 export const POST = withSession(async (s, body) => {
-  if (!getFeatures(s.version).peerChat) return error(403, "Peer check-in is not part of this version.");
+  // [Nitin, week 5] Neutral wording: error text must not mention study versions.
+  if (!getFeatures(s.version).peerChat) return error(403, "This feature is not available.");
 
   if (body.shown === true) {
     if (await getPeerCheckinV2Shown(s.sessionId)) return NextResponse.json({ ok: true, alreadyShown: true });

@@ -14,7 +14,8 @@ const END_OUTCOMES = ["returned", "declined", "left", "peer_unavailable"] as con
 export async function GET(req: NextRequest) {
   const s = await getCurrentSession();
   if (!s) return error(401, "No active session. Open your study link again.");
-  if (!getFeatures(s.version).peerChat) return error(403, "Peer check-in is not part of this version.");
+  // [Nitin, week 5] Neutral wording: error text must not mention study versions.
+  if (!getFeatures(s.version).peerChat) return error(403, "This feature is not available.");
   const taskId = req.nextUrl.searchParams.get("taskId");
   if (!taskId || !getTask(taskId)) return error(400, "Unknown taskId");
 
@@ -29,7 +30,8 @@ export async function GET(req: NextRequest) {
 // POST { taskId, index, end: "returned" | "declined" | "left" } -> close the check-in stage
 // (logs peer_checkin_ended; the checkpoint then shows its stopping choices)
 export const POST = withSession(async (s, body) => {
-  if (!getFeatures(s.version).peerChat) return error(403, "Peer check-in is not part of this version.");
+  // [Nitin, week 5] Neutral wording: error text must not mention study versions.
+  if (!getFeatures(s.version).peerChat) return error(403, "This feature is not available.");
   if (typeof body.taskId !== "string") return error(400, "taskId is required");
 
   if (typeof body.end === "string") {

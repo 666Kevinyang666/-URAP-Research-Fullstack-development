@@ -11,7 +11,7 @@ const MAX_NOTE = 2000;
 // "finish"/"pause" are also applied by the caller via the usual /api/task/complete or
 // /api/pause calls; this route only logs the checkpoint decision itself.
 export const POST = withSession(async (s, body) => {
-  if (!getFeatures(s.version).checkpoints) return error(403, "Checkpoints are not part of this version.");
+  if (!getFeatures(s.version).checkpoints) return error(403, "This feature is not available.");
   if (typeof body.taskId !== "string") return error(400, "taskId is required");
 
   const index = Number(body.index);

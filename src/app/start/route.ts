@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
     });
   } else {
     if (!isVersion(requestedVersion)) {
-      return new NextResponse("Missing or invalid version. Please use the link from the study.", { status: 400 });
+      return new NextResponse("This study link is incomplete. Please use the link from the study.", { status: 400 });
     }
     version = requestedVersion;
     session = await prisma.session.create({ data: { sessionId: sid, version } });
