@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 
 // GET /admin/export?format=json[&sid=]            -> every table, grouped by sid, as one JSON file
 // GET /admin/export?format=csv&table=<t>[&sid=]   -> one table as CSV (every row has a sid column)
-// Tables: sessions, drafts, snapshots, events, task_plans, active_time.
+// Tables: sessions, drafts, notes, snapshots, events, task_plans, active_time.
 export async function GET(req: NextRequest) {
   if (!adminAuthorized(req)) return challengeResponse();
 

@@ -22,7 +22,8 @@ export async function POST(req: Request) {
     specs = demoSetSpecs();
   } else {
     if (!isVersion(body.version)) return NextResponse.json({ error: "Pick a version" }, { status: 400 });
-    const sid = typeof body.sid === "string" && body.sid.trim() ? body.sid.trim() : newSid(body.version);
+    // Neutral generated sid (not the version name): participants can see their sid.
+    const sid = typeof body.sid === "string" && body.sid.trim() ? body.sid.trim() : newSid("p");
     specs = [{ sid, version: body.version }];
   }
 

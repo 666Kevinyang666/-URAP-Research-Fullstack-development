@@ -54,13 +54,16 @@ export async function createLinks(specs: LinkSpec[]): Promise<LinkSpec[]> {
   return specs;
 }
 
-/** One none link, one standard link, and a sustainable pair paired with each other. */
+/**
+ * One none link, one standard link, and a sustainable pair paired with each other. Sids are
+ * neutral ("demo-<random>"): participants can see theirs (e.g. on the survey placeholder).
+ */
 export function demoSetSpecs(): LinkSpec[] {
-  const a = newSid("demo-sustainable-a");
-  const b = newSid("demo-sustainable-b");
+  const a = newSid("demo");
+  const b = newSid("demo");
   return [
-    { sid: newSid("demo-none"), version: "none" },
-    { sid: newSid("demo-standard"), version: "standard" },
+    { sid: newSid("demo"), version: "none" },
+    { sid: newSid("demo"), version: "standard" },
     { sid: a, version: "sustainable", peer: b },
     { sid: b, version: "sustainable", peer: a },
   ];
@@ -77,16 +80,62 @@ export type SessionRow = {
   endedAt: string | null;
   stage: JourneyStage | "not_opened";
   tasks: { id: string; title: string; status: string }[];
+  metrics: SessionMetrics;
 };
+
+/** Per-session counts from the event log, for /admin and sessions.csv. */
+export type SessionMetrics = {
+  /** Withdraw from study (`withdrawn` event), or null. */
+  withdrawnAt: string | null;
+  /** Focus mode: away episodes (focus_returned events) and their total length. */
+  focusAwayCount: number;
+  focusAwayMs: number;
+  /** Pastes into the editor or notes (every version); large = largePasteChars or more. */
+  pasteCount: number;
+  largePasteCount: number;
+  /** Refused End work requests (end_work_blocked). */
+  endWorkBlockedCount: number;
+};
+
+const METRIC_EVENTS = ["withdrawn", "focus_returned", "paste", "large_paste", "end_work_blocked"];
+
+function emptyMetrics(): SessionMetrics {
+  return {
+    withdrawnAt: null,
+    focusAwayCount: 0,
+    focusAwayMs: 0,
+    pasteCount: 0,
+    largePasteCount: 0,
+    endWorkBlockedCount: 0,
+  };
+}
 
 /** Every session plus every created link that hasn't been opened yet, newest first. */
 export async function listSessions(): Promise<SessionRow[]> {
-  const [sessions, linkEvents, peerEvents, drafts] = await Promise.all([
+  const [sessions, linkEvents, peerEvents, drafts, metricEvents] = await Promise.all([
     prisma.session.findMany({ orderBy: { createdAt: "desc" } }),
     prisma.event.findMany({ where: { eventType: "admin_link_created" }, orderBy: { id: "asc" } }),
     prisma.event.findMany({ where: { eventType: "peer_paired" }, orderBy: { id: "asc" } }),
     prisma.draft.findMany({ select: { sessionId: true, taskId: true, status: true } }),
+    prisma.event.findMany({
+      where: { eventType: { in: METRIC_EVENTS } },
+      select: { sessionId: true, eventType: true, payload: true, timestamp: true },
+    }),
   ]);
+  const metricsBySid = new Map<string, SessionMetrics>();
+  for (const e of metricEvents) {
+    let m = metricsBySid.get(e.sessionId);
+    if (!m) metricsBySid.set(e.sessionId, (m = emptyMetrics()));
+    if (e.eventType === "withdrawn") m.withdrawnAt ??= e.timestamp.toISOString();
+    else if (e.eventType === "focus_returned") {
+      m.focusAwayCount++;
+      const awayMs = (e.payload as { awayMs?: unknown } | null)?.awayMs;
+      if (typeof awayMs === "number" && awayMs > 0) m.focusAwayMs += Math.round(awayMs);
+    } else if (e.eventType === "paste") m.pasteCount++;
+    else if (e.eventType === "large_paste") m.largePasteCount++;
+    else if (e.eventType === "end_work_blocked") m.endWorkBlockedCount++;
+  }
+  const metricsFor = (sid: string) => metricsBySid.get(sid) ?? emptyMetrics();
   const linkBySid = new Map(linkEvents.map((e) => [e.sessionId, e]));
   const peerBySid = new Map<string, string>();
   for (const e of peerEvents) {
@@ -121,6 +170,7 @@ export async function listSessions(): Promise<SessionRow[]> {
         ? await getJourneyStage({ sessionId: s.sessionId, version, endedAt: s.endedAt, workStartedAt: s.workStartedAt })
         : "not_opened",
       tasks: tasksFor(s.sessionId),
+      metrics: metricsFor(s.sessionId),
     });
   }
   const opened = new Set(sessions.map((s) => s.sessionId));
@@ -137,6 +187,7 @@ export async function listSessions(): Promise<SessionRow[]> {
       endedAt: null,
       stage: "not_opened",
       tasks: tasksFor(e.sessionId),
+      metrics: emptyMetrics(),
     });
   }
   return rows;
@@ -144,7 +195,15 @@ export async function listSessions(): Promise<SessionRow[]> {
 
 // ---- Export ----
 
-export const EXPORT_TABLES = ["sessions", "drafts", "snapshots", "events", "task_plans", "active_time"] as const;
+export const EXPORT_TABLES = [
+  "sessions",
+  "drafts",
+  "notes",
+  "snapshots",
+  "events",
+  "task_plans",
+  "active_time",
+] as const;
 export type ExportTable = (typeof EXPORT_TABLES)[number];
 
 export function isExportTable(v: unknown): v is ExportTable {
@@ -171,9 +230,24 @@ export async function exportRows(table: ExportTable, sid?: string): Promise<Row[
           work_started_at: r.workStartedAt,
           ended_at: r.endedAt,
           stage: r.stage,
+          withdrawn: r.metrics.withdrawnAt ? "true" : "false",
+          withdrawn_at: r.metrics.withdrawnAt,
           ...Object.fromEntries(r.tasks.map((t) => [`task_${t.id}`, t.status])),
+          focus_away_count: r.metrics.focusAwayCount,
+          focus_away_ms: r.metrics.focusAwayMs,
+          paste_count: r.metrics.pasteCount,
+          large_paste_count: r.metrics.largePasteCount,
+          end_work_blocked_count: r.metrics.endWorkBlockedCount,
         }));
     }
+    case "notes":
+      return (await prisma.taskNote.findMany({ where, orderBy: [{ sessionId: "asc" }, { taskId: "asc" }] })).map((n) => ({
+        sid: n.sessionId,
+        task_id: n.taskId,
+        revision_count: n.revisionCount,
+        updated_at: iso(n.updatedAt),
+        content: n.content,
+      }));
     case "drafts":
       return (await prisma.draft.findMany({ where, orderBy: [{ sessionId: "asc" }, { taskId: "asc" }] })).map((d) => ({
         sid: d.sessionId,
@@ -187,6 +261,7 @@ export async function exportRows(table: ExportTable, sid?: string): Promise<Row[
       return (await prisma.snapshot.findMany({ where, orderBy: { id: "asc" } })).map((s) => ({
         sid: s.sessionId,
         task_id: s.taskId,
+        kind: s.kind,
         reason: s.reason,
         created_at: iso(s.createdAt),
         content: s.content,
@@ -237,6 +312,7 @@ export async function exportJson(sid?: string) {
     bySid[s] = {
       session: tables.sessions.find((r) => r.sid === s) ?? null,
       drafts: pick("drafts"),
+      notes: pick("notes"),
       snapshots: pick("snapshots"),
       events: tables.events
         .filter((r) => r.sid === s)
