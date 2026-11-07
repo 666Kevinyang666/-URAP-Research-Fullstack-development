@@ -9,6 +9,10 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Study admin" };
 
 const fmt = (iso: string | null) => (iso ? iso.replace("T", " ").slice(0, 19) : "—");
+const fmtDuration = (ms: number) => {
+  const total = Math.round(ms / 1000);
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
+};
 
 // Researcher admin, outside the participant flow (ADMIN_PASSWORD, see src/proxy.ts).
 // The version picker exists only here, never in the participant workspace.
@@ -56,6 +60,8 @@ export default async function AdminPage() {
                   <th>Ended</th>
                   <th>Stage</th>
                   <th>Tasks</th>
+                  <th title="Focus mode: times the participant left (overlay shown), and total time away">Away</th>
+                  <th title="Pastes into the editor or notes (large: 200+ characters)">Pastes</th>
                   <th>Link</th>
                   <th>Export</th>
                 </tr>
@@ -71,7 +77,10 @@ export default async function AdminPage() {
                     <td>{s.createdAt ? fmt(s.createdAt) : `link made ${fmt(s.linkCreatedAt)}`}</td>
                     <td>{fmt(s.workStartedAt)}</td>
                     <td>{fmt(s.endedAt)}</td>
-                    <td className="stage">{s.stage.replace(/_/g, " ")}</td>
+                    <td className={`stage stage-${s.stage}`}>
+                      {s.stage.replace(/_/g, " ")}
+                      {s.metrics.withdrawnAt && <div className="admin-hint">withdrawn {fmt(s.metrics.withdrawnAt)}</div>}
+                    </td>
                     <td>
                       {s.stage === "not_opened" ? (
                         "—"
@@ -84,6 +93,12 @@ export default async function AdminPage() {
                           ))}
                         </ol>
                       )}
+                    </td>
+                    <td className="away">
+                      {s.metrics.focusAwayCount}× · {fmtDuration(s.metrics.focusAwayMs)}
+                    </td>
+                    <td className="pastes">
+                      {s.metrics.pasteCount} ({s.metrics.largePasteCount} large)
                     </td>
                     <td>
                       <CopyButton text={origin + s.link} />

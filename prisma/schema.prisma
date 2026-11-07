@@ -24,6 +24,7 @@ model Session {
   snapshots   Snapshot[]
   plans       TaskPlan[]
   activeTimes TaskActiveTime[]
+  notes       TaskNote[]
 }
 
 model Draft {
@@ -45,8 +46,10 @@ model Snapshot {
   sessionId String
   taskId    String
   content   String
-  reason    String // "interval" | "complete" | "reopen" | "end_work"
+  reason    String // "interval" | "complete" | "reopen" | "end_work" | "withdraw"
   createdAt DateTime @default(now())
+  // What was copied: "draft" (the answer in the main editor) or "notes" (TaskNote, features.notesPad).
+  kind      String   @default("draft")
 
   session Session @relation(fields: [sessionId], references: [sessionId])
 
@@ -78,6 +81,21 @@ model TaskActiveTime {
   taskId    String
   activeMs  Int      @default(0)
   updatedAt DateTime @updatedAt
+
+  session Session @relation(fields: [sessionId], references: [sessionId])
+
+  @@unique([sessionId, taskId])
+}
+
+// Drafting notes, one row per (sessionId, taskId), in versions with features.notesPad. Not submitted;
+// saved and snapshotted like Draft (Snapshot.kind = "notes"). revisionCount counts content changes only.
+model TaskNote {
+  id            Int      @id @default(autoincrement())
+  sessionId     String
+  taskId        String
+  content       String   @default("")
+  updatedAt     DateTime @updatedAt
+  revisionCount Int      @default(0)
 
   session Session @relation(fields: [sessionId], references: [sessionId])
 

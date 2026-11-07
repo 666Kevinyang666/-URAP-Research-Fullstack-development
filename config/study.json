@@ -9,5 +9,9 @@
   "demoTimeScale": 1,
   "breakPromptMinutes": [60, 120],
   "breakLengthMinutes": 5,
-  "peerCheckinMinutes": 90
+  "peerCheckinMinutes": 90,
+  "minAnswerCharsToComplete": 50,
+  "focusModeVersions": ["none"],
+  "notesPadVersions": ["none"],
+  "largePasteChars": 200
 }

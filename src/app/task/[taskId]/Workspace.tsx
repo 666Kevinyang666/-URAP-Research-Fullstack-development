@@ -3,9 +3,11 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { DraftStatus } from "@/lib/constants";
 import type { Plan } from "@/lib/plans";
-import { post } from "@/lib/clientApi";
+import { useRouter } from "next/navigation";
+import { logClientEvent, post } from "@/lib/clientApi";
 import { BREAK_LENGTH_MS, elapsedSince } from "@/lib/timing";
 import { useActiveTime } from "./useActiveTime";
+import { enterFullscreen, fullscreenSupported, useFocusMode, type FocusAway } from "./useFocusMode";
 
 /** Why the session is paused. "break" = "Take a 5-minute break" from a break prompt. */
 export type PauseInfo = { since: number; reason: "manual" | "break"; breakIndex: number | null };
@@ -29,7 +31,7 @@ type WorkspaceValue = {
   setPlan: (p: Plan) => void;
   /** True until the plan is submitted, in versions that require one; the editor is locked meanwhile. */
   needsPlan: boolean;
-  /** Live active task time in ms (excludes paused and hidden-tab time). */
+  /** Live active task time in ms (excludes paused, hidden-tab and focus-mode away time). */
   activeMs: number;
   paused: boolean;
   /** When (server time) and why the current pause started; null when not paused. */
@@ -49,16 +51,25 @@ type WorkspaceValue = {
    */
   claimPrompt: (name: string) => boolean;
   releasePrompt: (name: string) => void;
-  /** True once End work has started; no prompt may open after that. */
+  /** True once End work or Withdraw has started; no prompt (or focus overlay) may open after that. */
   promptsStopped: boolean;
+  /** features.focusMode: full screen, and the overlay while the participant is away. */
+  focusMode: boolean;
+  /** Current focus-mode away episode (overlay shown, editing blocked), or null. */
+  focusAway: FocusAway | null;
+  returnToStudy: () => void;
   flag: FlagInfo | null;
   setFlag: (f: FlagInfo) => void;
   /** Register a function to run before leaving the page. Returns an unregister function. */
   registerFlush: (fn: () => Promise<unknown>) => () => void;
-  /** Register a getter for the editor's current text (sent with End work). */
+  /** Register a getter for the editor's current text (sent with End work and Withdraw). */
   registerContentGetter: (fn: (() => string) | null) => void;
+  /** The editor's current (possibly unsaved) text. */
+  getContent: () => string;
   leaveTo: (url: string) => Promise<void>;
+  /** Rejects, and work continues, if the server refuses (e.g. a required task isn't complete). */
   endWork: () => Promise<void>;
+  withdraw: () => Promise<void>;
 };
 
 const WorkspaceContext = createContext<WorkspaceValue | null>(null);
@@ -84,6 +95,8 @@ type Props = {
   serverNowAtRender: number;
   initialPauseInfo: PauseInfo | null;
   initialFlag: FlagInfo | null;
+  /** features.focusMode. Task switches then navigate client-side, which keeps full screen. */
+  focusMode: boolean;
   children: React.ReactNode;
 };
 
@@ -112,10 +125,22 @@ export function WorkspaceProvider(props: Props) {
     [workStartedAtMs, serverNow],
   );
 
+  const router = useRouter();
+  const { focusMode } = props;
+  // Set below; useFocusMode saves through it when an away episode starts.
+  const flushAllRef = useRef<() => Promise<void>>(async () => {});
+  const { away: focusAway, returnToStudy } = useFocusMode({
+    enabled: focusMode,
+    active: focusMode && !paused && !promptsStopped,
+    taskId,
+    onAway: () => void flushAllRef.current(),
+  });
+
+  // Away time (focus mode) doesn't count as active task time.
   const { activeMs, flush: flushActiveTime } = useActiveTime(
     taskId,
     props.initialActiveMs,
-    !paused,
+    !paused && focusAway === null,
     props.activeTimeFlushIntervalMs,
   );
 
@@ -135,13 +160,22 @@ export function WorkspaceProvider(props: Props) {
   const flushAll = useCallback(async () => {
     await Promise.allSettled([...flushers.current].map((fn) => fn()));
   }, []);
+  flushAllRef.current = flushAll;
+
+  const getContent = useCallback(() => contentGetter.current?.() ?? "", []);
 
   const leaveTo = useCallback(
     async (url: string) => {
       await flushAll();
-      window.location.assign(url);
+      if (focusMode) {
+        // A full page load always leaves full screen, so focus mode navigates client-side.
+        logClientEvent(taskId, "task_close", { navigation: "client" });
+        router.push(url);
+      } else {
+        window.location.assign(url);
+      }
     },
-    [flushAll],
+    [flushAll, focusMode, router, taskId],
   );
 
   const claimPrompt = useCallback((name: string) => {
@@ -155,14 +189,31 @@ export function WorkspaceProvider(props: Props) {
     if (openPromptRef.current === name) openPromptRef.current = null;
   }, []);
 
-  const endWork = useCallback(async () => {
-    // Stop all treatment prompts once End work starts.
-    promptsStoppedRef.current = true;
-    setPromptsStopped(true);
-    await flushAll();
-    await post("/api/session/end", { taskId, content: contentGetter.current?.() });
-    window.location.reload(); // server renders the "continue to survey" page
-  }, [flushAll, taskId]);
+  // End work and Withdraw stop all treatment prompts and focus mode first. If the server
+  // refuses, work continues as before.
+  const stopAndPost = useCallback(
+    async (url: string, then: (data: { next?: string }) => void) => {
+      promptsStoppedRef.current = true;
+      setPromptsStopped(true);
+      try {
+        await flushAll();
+        then(await post<{ next?: string }>(url, { taskId, content: contentGetter.current?.() }));
+      } catch (e) {
+        promptsStoppedRef.current = false;
+        setPromptsStopped(false);
+        throw e;
+      }
+    },
+    [flushAll, taskId],
+  );
+
+  // The server renders the "continue to survey" page after End work.
+  const endWork = useCallback(() => stopAndPost("/api/session/end", () => window.location.reload()), [stopAndPost]);
+
+  const withdraw = useCallback(
+    () => stopAndPost("/api/session/withdraw", (data) => window.location.assign(data.next ?? "/exit")),
+    [stopAndPost],
+  );
 
   // Pausing stops the clock immediately (setPaused), then saves and records the pause.
   const pause = useCallback(
@@ -185,6 +236,8 @@ export function WorkspaceProvider(props: Props) {
   );
 
   const resume = useCallback(async () => {
+    // Focus mode: back to full screen from this click (needs the user gesture, so before any await).
+    if (focusMode && fullscreenSupported() && !document.fullscreenElement) void enterFullscreen(taskId);
     setPauseError(null);
     try {
       await post("/api/pause", { taskId, action: "resume", clientTs: new Date().toISOString() });
@@ -193,7 +246,7 @@ export function WorkspaceProvider(props: Props) {
     } catch (e) {
       setPauseError((e as Error).message);
     }
-  }, [taskId]);
+  }, [taskId, focusMode]);
 
   const value = useMemo(
     () => ({
@@ -217,12 +270,17 @@ export function WorkspaceProvider(props: Props) {
       claimPrompt,
       releasePrompt,
       promptsStopped,
+      focusMode,
+      focusAway,
+      returnToStudy,
       flag,
       setFlag,
       registerFlush,
       registerContentGetter,
+      getContent,
       leaveTo,
       endWork,
+      withdraw,
     }),
     [
       taskId,
@@ -242,18 +300,59 @@ export function WorkspaceProvider(props: Props) {
       claimPrompt,
       releasePrompt,
       promptsStopped,
+      focusMode,
+      focusAway,
+      returnToStudy,
       flag,
       registerFlush,
       registerContentGetter,
+      getContent,
       leaveTo,
       endWork,
+      withdraw,
     ],
   );
 
   return (
     <WorkspaceContext.Provider value={value}>
       <div className={paused ? "is-paused" : undefined}>{children}</div>
+      {focusMode && <FocusOverlay />}
     </WorkspaceContext.Provider>
+  );
+}
+
+/**
+ * Focus mode (features.focusMode): full-page overlay while the participant is away (left full
+ * screen, hid the tab or switched windows). A modal dialog, so it covers any other open dialog
+ * and blocks editing until the button is used.
+ */
+function FocusOverlay() {
+  const { focusAway, returnToStudy } = useWorkspace();
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    if (focusAway && !dialog.open) dialog.showModal();
+    if (!focusAway && dialog.open) dialog.close();
+  }, [focusAway]);
+  return (
+    <dialog
+      ref={dialogRef}
+      className="focus-overlay"
+      aria-labelledby="focus-overlay-title"
+      onCancel={(e) => e.preventDefault() /* only the button returns */}
+    >
+      {focusAway && (
+        <div className="focus-overlay-body">
+          <p id="focus-overlay-title">
+            <strong>Please return to the study.</strong> Outside tools and websites are not allowed in this session.
+          </p>
+          <button type="button" onClick={returnToStudy}>
+            {fullscreenSupported() ? "Return to full screen" : "Return to the study"}
+          </button>
+        </div>
+      )}
+    </dialog>
   );
 }
 

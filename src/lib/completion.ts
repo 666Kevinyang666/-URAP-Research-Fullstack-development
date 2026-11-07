@@ -1,3 +1,5 @@
+import { STUDY } from "./config";
+
 // Task completion questions, asked when a participant marks a task complete (all versions),
 // from the editor's "Mark task complete" button or the time-budget checkpoint.
 // Logged as a task_completion_answers event; the event log keeps earlier answers when a
@@ -32,4 +34,28 @@ export function parseCompletionAnswers(raw: unknown): CompletionAnswers | null {
     goodEnoughNote: a.skipped === true ? "" : text(a.goodEnoughNote),
     source: a.source === "checkpoint" ? "checkpoint" : "editor",
   };
+}
+
+// ---- Minimum answer length (all versions) ----
+// A task can be marked complete only when its saved answer in the main editor has at least
+// minAnswerCharsToComplete non-whitespace characters (config/study.json, default 50), so an
+// empty task can't be completed just to unlock End work. Checked in the browser for a quick
+// message, and enforced on the server in setTaskStatus (@/lib/drafts) for every path: the
+// editor button, the time-budget checkpoint, the AI-request checkpoint and direct API calls.
+// Drafting notes (features.notesPad) don't count.
+
+export const MIN_ANSWER_CHARS: number =
+  typeof STUDY.minAnswerCharsToComplete === "number" && STUDY.minAnswerCharsToComplete >= 0
+    ? STUDY.minAnswerCharsToComplete
+    : 50;
+
+export const ANSWER_TOO_SHORT_MESSAGE = "Write your answer in the editor before marking this task complete.";
+
+/** Non-whitespace characters in an answer. */
+export function answerChars(content: string): number {
+  return content.replace(/\s/g, "").length;
+}
+
+export function isAnswerLongEnough(content: string): boolean {
+  return answerChars(content) >= MIN_ANSWER_CHARS;
 }

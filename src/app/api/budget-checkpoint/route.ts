@@ -13,7 +13,7 @@ const MAX_NOTE = 2000;
 // "finish" and "pause" are applied by the caller via /api/task/complete and /api/pause.
 export const POST = withSession(async (s, body) => {
   if (!getFeatures(s.version).checkpoints || CHECKPOINT_TRIGGER !== "time_budget") {
-    return error(403, "The time-budget checkpoint is not part of this version.");
+    return error(403, "This feature is not available.");
   }
   if (typeof body.taskId !== "string") return error(400, "taskId is required");
 

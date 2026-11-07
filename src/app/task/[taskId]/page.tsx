@@ -28,6 +28,8 @@ import { getHandledBreakIndices } from "@/lib/breaks";
 import BreakPrompt from "./BreakPrompt";
 import { getPeerCheckinV2Ended, getPeerCheckinV2Shown } from "@/lib/peerVoice";
 import PeerCheckinV2 from "./PeerCheckinV2";
+import { ensureNote } from "@/lib/notes";
+import NotesPad from "./NotesPad";
 
 export const dynamic = "force-dynamic";
 
@@ -96,9 +98,12 @@ export default async function TaskPage({ params }: { params: Promise<{ taskId: s
   const [peerV2Shown, peerV2Ended] = features.peerChat
     ? await Promise.all([getPeerCheckinV2Shown(session.sessionId), getPeerCheckinV2Ended(session.sessionId)])
     : [false, false];
+  const note = features.notesPad ? await ensureNote(session.sessionId, taskId) : null;
 
   return (
+    // key: focus mode switches tasks client-side, so each task needs fresh workspace state.
     <WorkspaceProvider
+      key={taskId}
       taskId={taskId}
       initialStatus={status}
       initialRevisionCount={draft.revisionCount}
@@ -115,6 +120,7 @@ export default async function TaskPage({ params }: { params: Promise<{ taskId: s
           : null
       }
       initialFlag={budgetCheckpoint.flag}
+      focusMode={features.focusMode}
     >
       <main className="workspace">
         <TaskNav tasks={navTasks} />
@@ -132,15 +138,23 @@ export default async function TaskPage({ params }: { params: Promise<{ taskId: s
             snapshotIntervalMs={STUDY.snapshotIntervalMs}
           />
         </section>
-        {/* Always rendered (a one-line note when there's no AI) so the layout is identical across versions. */}
+        {/* Always rendered so the layout is identical across versions: the AI pane, or the drafting
+            notes in the same place and size, or (neither flag on) a one-line note. With both flags
+            on, the notes go below the AI pane. */}
         <aside className="side-column">
           {features.taskPlan && <PlanPanel />}
           {features.effortDisplay && <EffortPanel initialAiRequestCount={effort.aiRequestCount} />}
-          {features.ai ? (
-            <ChatPane taskId={taskId} version={session.version} initialMessages={aiMessages} />
-          ) : (
-            <p className="no-ai-note">AI assistance is not available in this session.</p>
+          {features.ai && <ChatPane taskId={taskId} version={session.version} initialMessages={aiMessages} />}
+          {note && (
+            <NotesPad
+              sessionId={session.sessionId}
+              taskId={taskId}
+              initialContent={note.content}
+              autosaveIntervalMs={STUDY.autosaveIntervalMs}
+              snapshotIntervalMs={STUDY.snapshotIntervalMs}
+            />
           )}
+          {!features.ai && !note && <p className="no-ai-note">AI assistance is not available.</p>}
         </aside>
         {/* checkpointTrigger (config/study.json) picks the time-budget checkpoint (default) or the
             AI-request-count checkpoint with its peer check-in stage. */}

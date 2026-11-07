@@ -13,7 +13,8 @@ const MAX_HISTORY_MESSAGES = 20;
 // Logs ai_user_message before calling the model and ai_assistant_message (or ai_error)
 // after, so the conversation can be replayed from the event log alone.
 export const POST = withSession(async (s, body) => {
-  if (!getFeatures(s.version).ai) return error(403, "AI is not available in this version.");
+  // [Nitin, week 5] Neutral wording: error text must not mention study versions.
+  if (!getFeatures(s.version).ai) return error(403, "This feature is not available.");
   if (typeof body.taskId !== "string") return error(400, "taskId is required");
   const task = getTask(body.taskId);
   if (!task) return error(400, "Unknown taskId");

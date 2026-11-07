@@ -13,7 +13,7 @@ import { getSessionClock } from "@/lib/sessionClock";
 // -> { ok, alreadyHandled? }. The break itself is a pause with reason "break" (POST /api/pause),
 // which logs break_ended with its duration on resume.
 export const POST = withSession(async (s, body) => {
-  if (!getFeatures(s.version).breakPrompts) return error(403, "Break prompts are not part of this version.");
+  if (!getFeatures(s.version).breakPrompts) return error(403, "This feature is not available.");
   const taskId = typeof body.taskId === "string" ? body.taskId : null;
   const breakIndex = Number(body.breakIndex);
   if (!Number.isInteger(breakIndex) || breakIndex < 0 || breakIndex >= BREAK_PROMPT_TIMES_MS.length) {

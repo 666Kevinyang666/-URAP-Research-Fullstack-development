@@ -3,7 +3,7 @@ import study from "@config/study.json";
 import brief from "@config/brief.json";
 import welcome from "@config/welcome.json";
 
-/** A task as written in config/tasks.json. Optional tasks don't trigger the End work warning. */
+/** A task as written in config/tasks.json. Required tasks must all be complete before End work; optional tasks never block it. */
 type TaskContent = {
   id: string;
   title: string;
