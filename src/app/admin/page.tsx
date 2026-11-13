@@ -62,6 +62,9 @@ export default async function AdminPage() {
                   <th>Tasks</th>
                   <th title="Focus mode: times the participant left (overlay shown), and total time away">Away</th>
                   <th title="Pastes into the editor or notes (large: 200+ characters)">Pastes</th>
+                  <th title="Estimated OpenAI cost from logged token usage (task assistant + interview), priced with config/pricing.json">
+                    AI cost
+                  </th>
                   <th>Link</th>
                   <th>Export</th>
                 </tr>
@@ -100,6 +103,10 @@ export default async function AdminPage() {
                     <td className="pastes">
                       {s.metrics.pasteCount} ({s.metrics.largePasteCount} large)
                     </td>
+                    <td className="ai-cost">
+                      {s.metrics.aiCalls ? `$${s.metrics.aiCostUsd.toFixed(4)}` : "—"}
+                      {s.metrics.aiCalls > 0 && <div className="admin-hint">{s.metrics.aiCalls} calls</div>}
+                    </td>
                     <td>
                       <CopyButton text={origin + s.link} />
                     </td>
@@ -133,6 +140,11 @@ export default async function AdminPage() {
         </ul>
         <p className="admin-hint">
           One session: use its JSON link in the table, or add <code>&amp;sid=…</code> to any export link.
+        </p>
+        <p className="admin-hint">
+          AI cost is an estimate from logged token usage and <code>config/pricing.json</code> (verify prices against
+          OpenAI&apos;s pricing page). <code>ai_usage.csv</code> has one row per AI reply; <code>npm run cost-report</code>{" "}
+          writes the full report and study projection.
         </p>
       </section>
     </main>
