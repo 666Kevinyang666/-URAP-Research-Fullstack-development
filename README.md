@@ -47,6 +47,8 @@ terminal; stop it with Ctrl+C.
 | `DATABASE_URL` | SQLite file, default `file:./dev.db`. |
 | `DEMO_PASSWORD`, `ADMIN_PASSWORD` | Password protection, for `npm run demo`. Leave `DEMO_PASSWORD` empty for local dev (no password). |
 | `DEMO_TIME_SCALE` | Optional session-clock speed-up, overriding `demoTimeScale` in `config/study.json` (see below). |
+| `BASELINE_SURVEY_URL`, `END_SURVEY_URL` | Optional real Qualtrics survey links, overriding `baselineSurveyUrl` / `endSurveyUrl` in `config/study.json` (which stay on the local placeholder, since the repo is public). Read per request, so a restart is enough. See [Qualtrics setup](#qualtrics-setup). |
+| `QUALTRICS_API_TOKEN` | Optional. Only for configuring or checking the surveys through the Qualtrics API (see [Qualtrics setup](#qualtrics-setup)). The app never uses it. |
 
 Open a session at `http://localhost:3000/start?sid=TEST123&version=standard`, or create links at
 `http://localhost:3000/admin`.
@@ -147,9 +149,12 @@ neither, a one-line "AI assistance is not available.").
 
 Both surveys leave the app with the participant's `sid` and come back to it.
 
-1. **Survey URLs**: put each survey's anonymous link in `config/study.json`: `baselineSurveyUrl` (after
-   consent, before the instructions) and `endSurveyUrl` (after End work, before the interview). The app
-   adds `?sid=<sid>&return_url=<this app's /survey/return link>` to it.
+1. **Survey URLs**: set each survey's anonymous link in `.env` as `BASELINE_SURVEY_URL` (after consent,
+   before the instructions) and `END_SURVEY_URL` (after End work, before the interview). They override
+   `baselineSurveyUrl` / `endSurveyUrl` in `config/study.json`, which keep pointing at the local
+   placeholder so no survey link is committed to this public repo. Both may be the same survey while
+   testing. The app adds `?sid=<sid>&return_url=<this app's /survey/return link>` (URL-encoded, on the
+   host the participant is using, so it works through the demo tunnel).
 2. **Embedded data**: in each survey's Survey Flow, add an **Embedded Data** element at the top with a
    field named exactly `sid` (leave the value empty, so Qualtrics reads it from the URL). Add a second
    field `return_url` the same way if you use option B below. `sid` then appears as a column in the
@@ -161,9 +166,57 @@ Both surveys leave the app with the participant's `sid` and come back to it.
    - Option B, any host (works with the demo tunnel, whose link changes every run): `${e://Field/return_url}`
      in both surveys. The app sends the right link for each survey.
 
+4. **Publish** the survey after these changes (the anonymous link serves the last published version).
+
 `/survey/return` logs `survey_returned`, restores the participant's session cookie (in case the survey
 ran in another browser tab or profile) and continues to the next step. A return link for a step the
-participant isn't on doesn't skip anything ahead.
+participant isn't on doesn't skip anything ahead. An unknown sid gets a 404 and an unknown survey kind
+a 400.
+
+The test survey ("Work experiment") was set up with option B on 2026-11-13 through the API (method A
+below), and a full round trip (consent → survey → app → End work → survey → interview) was verified.
+
+### Configuring a survey: two methods
+
+Only these three changes are needed; don't touch questions, blocks or other settings (the surveys
+belong to the PI).
+
+- **Method A, Qualtrics API** (needs `QUALTRICS_API_TOKEN` in `.env`: Account settings → Qualtrics IDs
+  → API token; the account needs API access). Base URL `https://berkeley.yul1.qualtrics.com/API/v3`,
+  header `X-API-TOKEN`. If that host fails, `GET https://yul1.qualtrics.com/API/v3/whoami` shows the
+  account's datacenter.
+  1. Back up first: `GET /survey-definitions/{surveyId}/flow` and `/options`, save both (e.g. to
+     `.inputs/qualtrics-backup-<date>.json`, which is gitignored).
+  2. Embedded data: `PUT /survey-definitions/{surveyId}/flow` with the same flow plus, as the first
+     element, `{ "Type": "EmbeddedData", "FlowID": "FL_<Count+1>", "EmbeddedData": [ { "Description":
+     "sid", "Type": "Recipient", "Field": "sid", "VariableType": "String", "DataVisibility": [],
+     "AnalyzeText": false }, { …same for "return_url" } ] }`, and `Properties.Count` raised to match.
+     Keep every existing element and FlowID unchanged.
+  3. Redirect: `PUT /survey-definitions/{surveyId}/options` with the full options object, changing only
+     `"SurveyTermination": "Redirect"` and `"EOSRedirectURL": "${e://Field/return_url}"`.
+  4. Publish: `POST /survey-definitions/{surveyId}/versions` with `{ "Description": "…", "Published": true }`.
+  5. GET the flow and options again and diff them against the backup: only those differences should appear.
+- **Method B, the browser**: Survey flow → **Add a new element here** → Embedded data → fields `sid` and
+  `return_url` with no value → move it to the top → **Apply**. Survey options → End of survey →
+  **Redirect to a URL** → `${e://Field/return_url}` → save. **Publish**.
+
+### Verifying and troubleshooting
+
+- **Check the `sid` column**: Data & Analysis (or the API's `POST /surveys/{surveyId}/export-responses`)
+  should show `sid` and `return_url` columns, with `sid` equal to the app's sid (`/admin`). A response
+  whose `sid` is the survey's own ID (`SV_…`) or empty came in without a sid (e.g. someone opened the
+  anonymous link directly, or the response predates the embedded data).
+- **Survey ends with "Thank you" and doesn't return**: the redirect isn't set, or the survey wasn't
+  published after setting it.
+- **Redirects to a blank or broken URL**: the Embedded Data element is missing `return_url`, is below
+  the question blocks in the flow, or has a value set (it must be empty so it's read from the URL).
+- **"Session not found"** on return: the `sid` changed on the way (check the embedded data field name
+  is exactly `sid`), or the demo database was reset.
+- **Lands on the wrong step**: `/survey/return` only advances from the step the participant is on; a
+  stale or repeated return link just goes to their current step.
+- **Restore from the backup** (method A): `PUT` the saved `flow` and `options` objects back to
+  `/survey-definitions/{surveyId}/flow` and `/options`, then publish a new version. In the browser,
+  delete the Embedded Data element and set End of survey back to the default message, then publish.
 
 ## Changing study content
 
@@ -176,7 +229,8 @@ All study content is in `config/`; edit the JSON and restart (`npm run dev`, or 
 | "Welcome to Frame" page | `config/welcome.json` |
 | Instructions and understanding check (per version) | `config/instructions.json` |
 | Interview questions (and which versions get each) | `config/interview.json` |
-| Survey URLs, prompt timings (breaks, peer check-in), checkpoint trigger, autosave/snapshot intervals, minimum answer length, which versions get focus mode and drafting notes, large-paste size | `config/study.json` |
+| AI prices per model (for cost estimates) | `config/pricing.json` |
+| Survey URLs (placeholder; real links go in `.env`), prompt timings (breaks, peer check-in), checkpoint trigger, autosave/snapshot intervals, minimum answer length, which versions get focus mode and drafting notes, large-paste size | `config/study.json` |
 | Which version gets which feature | `src/lib/features.ts` |
 | Consent text | `src/app/consent/page.tsx` (placeholder) |
 | Treatment prompt wording | `src/app/task/[taskId]/BudgetCheckpoint.tsx`, `BreakPrompt.tsx`, `PeerCheckinV2.tsx` |
@@ -205,7 +259,8 @@ Details of each file are below.
   hints that other versions get different tools.
 - `config/study.json`: `baselineSurveyUrl` and `endSurveyUrl` (the two Qualtrics links; both default to
   `/survey-placeholder`, a local stand-in page that shows the sid and has a **Return to study** button.
-  Replace them before the study runs; see [Qualtrics setup](#qualtrics-setup)), `autosaveIntervalMs` (3 s), `snapshotIntervalMs` (5 min),
+  Set the real links in `.env` (`BASELINE_SURVEY_URL`, `END_SURVEY_URL`) rather than here, since the
+  repo is public; see [Qualtrics setup](#qualtrics-setup)), `autosaveIntervalMs` (3 s), `snapshotIntervalMs` (5 min),
   `activeTimeFlushIntervalMs` (15 s: how often the browser sends active time), and
   `checkpointTrigger` (`"time_budget"` (default) | `"ai_requests"`) — what opens the completion checkpoint,
   `checkpointAiRequestThresholds` (default `[3, 6]`) — AI-request counts at which the checkpoint opens when
@@ -564,8 +619,35 @@ so the interview still runs through all its questions.
   per-participant cost tracking — see `ai_assistant_message`/`interview_assistant_message` above.
 - Sends `temperature: 0.4` by default, but some reasoning-tier models reject a custom temperature
   (a `400` with `error.param: "temperature"`). On that specific error it retries once without the
-  parameter rather than failing the request — untested against a real `gpt-5.6-terra` call, since no
-  `OPENAI_API_KEY` has been available to verify it against the live API yet.
+  parameter rather than failing the request. A real-key pilot with `gpt-5.6-terra` (2026-11-13) ran
+  without errors.
+
+### AI cost
+
+Cost is estimated from the logged `usage` and `config/pricing.json` (USD per 1M tokens per model:
+`input`, `cachedInput`, `output`; a model logged with a dated suffix uses the entry it starts with).
+**The prices there are unverified planning numbers: check them against OpenAI's pricing page** and set
+`"verified": true` when you have. Cost = (input − cached) × input + cached × cachedInput + output ×
+output; reasoning tokens are part of the output count. The formula is in `src/lib/cost.ts` and,
+duplicated, in `scripts/cost-report.mjs`.
+
+- `/admin` shows an **AI cost** column (estimated dollars and the number of AI replies per session).
+  The export has `ai_calls` / `ai_cost_usd` in `sessions.csv`, an `ai_usage` table (one row per AI reply:
+  call type, model, input / cached / output / reasoning tokens, cost), and an `aiCost` total in the JSON.
+- `npm run cost-report` writes `docs/cost-report.md` and prints a summary: tokens and cost per call,
+  session, version and call type (task assistant vs interview), how cost grows with conversation
+  length, a full-study projection (330 participants, 110 per arm, at 30 / 60 / 120 AI requests per
+  AI-arm participant) and a Terra vs Luna comparison. Options:
+
+  | Option | Use |
+  | --- | --- |
+  | `--db demo.db` | Read another SQLite file (default: `DATABASE_URL`, else `dev.db`) |
+  | `--sid-prefix pilot-` | Only sessions whose sid starts with this |
+  | `--since 2026-11-13` | Only calls from this time on |
+  | `--out <file.md>` / `--no-write` | Write elsewhere / only print the summary |
+
+  Example: `npm run cost-report -- --db demo.db --sid-prefix pilot-`. The script opens the database
+  read-only and runs on Windows, macOS and Linux.
 
 ## Data and export
 
@@ -575,13 +657,15 @@ the app's export and the Qualtrics exports join on `sid`.
 
 From `/admin` → **Export** (or `GET /admin/export`, `ADMIN_PASSWORD`):
 
-- **All data as one JSON file**: `?format=json` → `{ exportedAt, sessionCount, sessions: { <sid>: { session,
-  drafts, notes, snapshots, events, task_plans, active_time } } }`. Event payloads are included as JSON.
-- **CSV, one table per file**: `?format=csv&table=sessions|drafts|notes|snapshots|events|task_plans|active_time`.
+- **All data as one JSON file**: `?format=json` → `{ exportedAt, sessionCount, aiCost, sessions: { <sid>: {
+  session, drafts, notes, snapshots, events, task_plans, active_time, ai_usage } } }`. Event payloads are
+  included as JSON. `aiCost` is `{ pricingAsOf, note, calls, totalUsd }` for the exported sessions.
+- **CSV, one table per file**: `?format=csv&table=sessions|drafts|notes|snapshots|events|task_plans|active_time|ai_usage`.
   The first column is always `sid`. `sessions.csv` includes the version, peer, timestamps, journey stage
   (`withdrawn` for a withdrawal), `withdrawn` / `withdrawn_at`, one status column per task,
   `focus_away_count` / `focus_away_ms` (focus mode), `paste_count` / `large_paste_count`, and
-  `end_work_blocked_count`. `notes.csv` has the drafting notes; `snapshots.csv` has a `kind` column
+  `end_work_blocked_count`, and `ai_calls` / `ai_cost_usd` (see [AI cost](#ai-cost)). `ai_usage.csv` has
+  one row per AI reply with its tokens and estimated cost. `notes.csv` has the drafting notes; `snapshots.csv` has a `kind` column
   (`draft`/`notes`). `events.csv` has the payload as a JSON string.
 - **The sessions table** in `/admin` shows the same: stage (withdrawn in red, with the time), times away
   and total time away, and paste counts (large pastes in brackets).
@@ -620,8 +704,9 @@ This prototype is for demos and pilot testing. Before running the study:
   voice uploads) on the production host.
 - **Outputs for blinded review**: export the final drafts without version labels or identifying details,
   in a format the reviewers can grade blind.
-- **AI model**: test against the real `gpt-5.6-terra` API (only mock mode has been tested end to end), and
-  confirm per-participant cost from the logged `usage`.
+- **AI model and cost**: a 4-session real-key pilot with `gpt-5.6-terra` ran on 2026-11-13; see
+  `docs/cost-report.md` and `docs/ai-behavior-check.md`. Verify `config/pricing.json` against OpenAI's
+  pricing page, and decide on Terra vs Luna.
 
 ## Logging from server code
 
