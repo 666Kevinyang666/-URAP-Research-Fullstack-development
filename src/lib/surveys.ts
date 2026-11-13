@@ -11,9 +11,14 @@ export function isSurveyKind(v: unknown): v is SurveyKind {
   return typeof v === "string" && (SURVEY_KINDS as readonly string[]).includes(v);
 }
 
-/** config/study.json URL for a survey: a full Qualtrics link, or an app path (the local placeholder). */
+/**
+ * URL for a survey: a full Qualtrics link, or an app path (the local placeholder).
+ * BASELINE_SURVEY_URL / END_SURVEY_URL in the environment (.env) override config/study.json, so real
+ * survey links stay out of the public repo. Read at request time, so no rebuild is needed to change them.
+ */
 export function surveyConfigUrl(kind: SurveyKind): string {
-  return kind === "baseline" ? STUDY.baselineSurveyUrl : STUDY.endSurveyUrl;
+  const fromEnv = (kind === "baseline" ? process.env.BASELINE_SURVEY_URL : process.env.END_SURVEY_URL)?.trim();
+  return fromEnv || (kind === "baseline" ? STUDY.baselineSurveyUrl : STUDY.endSurveyUrl);
 }
 
 /** Whether the participant has come back from this survey (survey_returned logged). */
