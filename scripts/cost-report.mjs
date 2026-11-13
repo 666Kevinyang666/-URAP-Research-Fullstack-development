@@ -180,13 +180,13 @@ const intAvg = avgTok(iCalls);
 const cachedShare = taskAvg.input ? taskAvg.cachedInput / taskAvg.input : 0;
 // Length-adjusted per-call input: N requests spread evenly over the 3 required tasks; the input
 // grows with the turn (fitted above) until the 20-message history cap (turn 11).
-function lengthAdjustedTaskCall(n) {
-  if (!growth) return taskAvg;
+function lengthAdjustedTaskCall(n, share = cachedShare) {
+  if (!growth) return { ...taskAvg, cachedInput: taskAvg.input * share };
   const perTask = n / P.tasksUsed;
   let tot = 0;
   for (let k = 1; k <= perTask; k++) tot += Math.max(0, growth.a + growth.b * Math.min(k, 11));
   const input = tot / Math.max(1, Math.floor(perTask));
-  return { ...taskAvg, input, cachedInput: input * cachedShare };
+  return { ...taskAvg, input, cachedInput: input * share };
 }
 function projection(model) {
   const price = pricing.models[model];
@@ -195,6 +195,7 @@ function projection(model) {
   for (const n of P.requests) {
     const perCallFlat = cost(taskAvg, price) ?? 0;
     const perCallAdj = cost(lengthAdjustedTaskCall(n), price) ?? 0;
+    const perCallNoCache = cost(lengthAdjustedTaskCall(n, 0), price) ?? 0;
     const aiPart = (perCall) => ({
       none: interviewPer("none"),
       standard: n * perCall + interviewPer("standard"),
@@ -202,8 +203,9 @@ function projection(model) {
     });
     const flat = aiPart(perCallFlat);
     const adj = aiPart(perCallAdj);
+    const noCache = aiPart(perCallNoCache);
     const totalOf = (x) => P.perArm * (x.none + x.standard + x.sustainable);
-    rows.push({ n, flat, adj, totalFlat: totalOf(flat), totalAdj: totalOf(adj) });
+    rows.push({ n, flat, adj, totalFlat: totalOf(flat), totalAdj: totalOf(adj), totalNoCache: totalOf(noCache) });
   }
   return rows;
 }
@@ -306,8 +308,8 @@ for (const model of Object.keys(pricing.models)) {
   md.push(`### ${model}${model === models[0] ? " (measured model)" : " (same tokens, repriced)"}`, "");
   md.push(
     table(
-      ["AI requests / AI-arm participant", "none / participant", "standard / participant", "sustainable / participant", "Study total (flat)", "Study total (length-adjusted)"],
-      rows.map((r) => [r.n, usd(r.flat.none), usd(r.flat.standard, 2), usd(r.flat.sustainable, 2), `**${usd(r.totalFlat, 2)}**`, usd(r.totalAdj, 2)]),
+      ["AI requests / AI-arm participant", "none / participant", "standard / participant", "sustainable / participant", "Study total (flat)", "Study total (length-adjusted)", "Length-adjusted, no caching"],
+      rows.map((r) => [r.n, usd(r.flat.none), usd(r.flat.standard, 2), usd(r.flat.sustainable, 2), `**${usd(r.totalFlat, 2)}**`, usd(r.totalAdj, 2), usd(r.totalNoCache, 2)]),
     ),
     "",
   );
@@ -338,6 +340,7 @@ md.push(
     "- Only successful replies with logged `usage` are counted. Failed calls (`ai_error`, `interview_error`), mock replies and scripted interview lines have no usage and cost $0 here; OpenAI may still bill a failed call's input.",
     `- Projection, flat: N requests × the measured average task-call cost, plus interview follow-ups (none ${followUps.none}, standard ${followUps.standard}, sustainable ${followUps.sustainable} per participant, from \`config/interview.json\`) × the measured average follow-up cost.`,
     `- Projection, length-adjusted: N requests split evenly over the ${P.tasksUsed} required tasks; input per call follows the fitted growth by turn, capped at the 20-message history limit, with the measured cached share. Longer conversations than the pilot's make this the better guide at 60–120 requests.`,
+    `- Caching: ${(cachedShare * 100).toFixed(0)}% of task-assistant input was cached in the measured calls. Scripted test runs send messages seconds apart; real participants pause for minutes, and OpenAI's prompt cache can expire in between, so the "no caching" column is the upper bound for input cost.`,
     "- Drafts are assumed to be about as long as in the measured sessions; the system prompt includes the current draft, so longer drafts raise input cost.",
     "- Both AI arms are assumed to use the same number of requests. Real usage will differ by arm and by person.",
     "- No allowance for retries, testing, piloting or price changes. Add a margin.",
