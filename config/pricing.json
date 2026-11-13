@@ -1,0 +1,9 @@
+{
+  "_note": "USD per 1M tokens, per model. Entered 2026-11-13 from the project's planning numbers and NOT yet verified: check them against OpenAI's pricing page (https://openai.com/api/pricing) before relying on any estimate. input = uncached prompt tokens; cachedInput = prompt_tokens_details.cached_tokens; output = completion_tokens (reasoning tokens are included in completion_tokens and billed as output). A model logged with a dated suffix (e.g. gpt-5.6-terra-2026-...) uses the entry whose name it starts with. Used by npm run cost-report and the AI cost column in /admin.",
+  "asOf": "2026-11-13",
+  "verified": false,
+  "models": {
+    "gpt-5.6-terra": { "input": 2.0, "cachedInput": 0.2, "output": 12.0 },
+    "gpt-5.6-luna": { "input": 0.2, "cachedInput": 0.02, "output": 1.2 }
+  }
+}

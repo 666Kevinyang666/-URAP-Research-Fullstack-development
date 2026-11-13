@@ -4,6 +4,7 @@ import { isVersion, type Version } from "./constants";
 import { getJourneyStage, type JourneyStage } from "./journey";
 import { logEvent } from "./logEvent";
 import { checkBasicAuth } from "./basicAuth";
+import { usageCostUsd, usageTokens, PRICING_AS_OF } from "./cost";
 
 // Researcher admin (/admin): session links, the sessions table and data export.
 // Not part of the participant flow; protected by ADMIN_PASSWORD (src/proxy.ts, and again here).
@@ -95,7 +96,13 @@ export type SessionMetrics = {
   largePasteCount: number;
   /** Refused End work requests (end_work_blocked). */
   endWorkBlockedCount: number;
+  /** AI replies with logged usage (task assistant + interview follow-ups) and their estimated cost (config/pricing.json). */
+  aiCalls: number;
+  aiCostUsd: number;
 };
+
+/** Events whose payload carries OpenAI usage (one per model reply). */
+const AI_USAGE_EVENTS = ["ai_assistant_message", "interview_assistant_message"];
 
 const METRIC_EVENTS = ["withdrawn", "focus_returned", "paste", "large_paste", "end_work_blocked"];
 
@@ -107,12 +114,14 @@ function emptyMetrics(): SessionMetrics {
     pasteCount: 0,
     largePasteCount: 0,
     endWorkBlockedCount: 0,
+    aiCalls: 0,
+    aiCostUsd: 0,
   };
 }
 
 /** Every session plus every created link that hasn't been opened yet, newest first. */
 export async function listSessions(): Promise<SessionRow[]> {
-  const [sessions, linkEvents, peerEvents, drafts, metricEvents] = await Promise.all([
+  const [sessions, linkEvents, peerEvents, drafts, metricEvents, aiEvents] = await Promise.all([
     prisma.session.findMany({ orderBy: { createdAt: "desc" } }),
     prisma.event.findMany({ where: { eventType: "admin_link_created" }, orderBy: { id: "asc" } }),
     prisma.event.findMany({ where: { eventType: "peer_paired" }, orderBy: { id: "asc" } }),
@@ -121,6 +130,7 @@ export async function listSessions(): Promise<SessionRow[]> {
       where: { eventType: { in: METRIC_EVENTS } },
       select: { sessionId: true, eventType: true, payload: true, timestamp: true },
     }),
+    prisma.event.findMany({ where: { eventType: { in: AI_USAGE_EVENTS } }, select: { sessionId: true, payload: true } }),
   ]);
   const metricsBySid = new Map<string, SessionMetrics>();
   for (const e of metricEvents) {
@@ -134,6 +144,15 @@ export async function listSessions(): Promise<SessionRow[]> {
     } else if (e.eventType === "paste") m.pasteCount++;
     else if (e.eventType === "large_paste") m.largePasteCount++;
     else if (e.eventType === "end_work_blocked") m.endWorkBlockedCount++;
+  }
+  for (const e of aiEvents) {
+    const p = e.payload as { model?: unknown; usage?: unknown } | null;
+    const c = usageCostUsd(p?.model, p?.usage);
+    if (c === null) continue;
+    let m = metricsBySid.get(e.sessionId);
+    if (!m) metricsBySid.set(e.sessionId, (m = emptyMetrics()));
+    m.aiCalls++;
+    m.aiCostUsd += c;
   }
   const metricsFor = (sid: string) => metricsBySid.get(sid) ?? emptyMetrics();
   const linkBySid = new Map(linkEvents.map((e) => [e.sessionId, e]));
@@ -203,6 +222,7 @@ export const EXPORT_TABLES = [
   "events",
   "task_plans",
   "active_time",
+  "ai_usage",
 ] as const;
 export type ExportTable = (typeof EXPORT_TABLES)[number];
 
@@ -238,6 +258,8 @@ export async function exportRows(table: ExportTable, sid?: string): Promise<Row[
           paste_count: r.metrics.pasteCount,
           large_paste_count: r.metrics.largePasteCount,
           end_work_blocked_count: r.metrics.endWorkBlockedCount,
+          ai_calls: r.metrics.aiCalls,
+          ai_cost_usd: Number(r.metrics.aiCostUsd.toFixed(6)),
         }));
     }
     case "notes":
@@ -286,6 +308,35 @@ export async function exportRows(table: ExportTable, sid?: string): Promise<Row[
         created_at: iso(p.createdAt),
         updated_at: iso(p.updatedAt),
       }));
+    case "ai_usage": {
+      // One row per model reply with logged usage; cost estimated with config/pricing.json.
+      const events = await prisma.event.findMany({
+        where: { ...where, eventType: { in: AI_USAGE_EVENTS } },
+        orderBy: { id: "asc" },
+      });
+      return events.flatMap((e) => {
+        const p = e.payload as { model?: unknown; usage?: unknown } | null;
+        const t = usageTokens(p?.usage);
+        if (!t) return [];
+        const c = usageCostUsd(p?.model, p?.usage);
+        return [
+          {
+            sid: e.sessionId,
+            event_id: e.id,
+            timestamp: iso(e.timestamp),
+            version: e.version,
+            task_id: e.taskId,
+            call_type: e.eventType === "ai_assistant_message" ? "task_assistant" : "interview",
+            model: typeof p?.model === "string" ? p.model : null,
+            input_tokens: t.input,
+            cached_input_tokens: t.cachedInput,
+            output_tokens: t.output,
+            reasoning_tokens: t.reasoning,
+            cost_usd: c === null ? null : Number(c.toFixed(6)),
+          },
+        ];
+      });
+    }
     case "active_time":
       return (await prisma.taskActiveTime.findMany({ where, orderBy: { id: "asc" } })).map((a) => ({
         sid: a.sessionId,
@@ -319,9 +370,16 @@ export async function exportJson(sid?: string) {
         .map(({ sid: _sid, payload, ...rest }) => ({ ...rest, payload: JSON.parse(String(payload)) })), // eslint-disable-line @typescript-eslint/no-unused-vars
       task_plans: pick("task_plans"),
       active_time: pick("active_time"),
+      ai_usage: pick("ai_usage"),
     };
   }
-  return { exportedAt: new Date().toISOString(), sessionCount: sids.length, sessions: bySid };
+  const aiCost = {
+    pricingAsOf: PRICING_AS_OF,
+    note: "Estimated from logged usage with config/pricing.json; verify prices against OpenAI's pricing page.",
+    calls: tables.ai_usage.length,
+    totalUsd: Number(tables.ai_usage.reduce((a, r) => a + (typeof r.cost_usd === "number" ? r.cost_usd : 0), 0).toFixed(6)),
+  };
+  return { exportedAt: new Date().toISOString(), sessionCount: sids.length, aiCost, sessions: bySid };
 }
 
 function csvCell(v: string | number | null): string {
